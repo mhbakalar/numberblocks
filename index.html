@@ -517,6 +517,7 @@
   <button class="mode-btn active" onclick="setMode('free')">Free Play</button>
   <button class="mode-btn" onclick="setMode('guided')">Addition</button>
   <button class="mode-btn" onclick="setMode('subtract')">Subtraction</button>
+  <button class="mode-btn" onclick="setMode('multiply')">Multiplication</button>
 </div>
 
 <div id="playground">
@@ -1214,7 +1215,10 @@ function canCombine(dragBlock, otherBlock) {
   if (isSubtractDrag(dragBlock) && otherBlock.value > dragBlock.value) {
     return true;
   }
-  if (!isSubtractDrag(dragBlock) && dragBlock.value + otherBlock.value <= MAX_NUMBER) {
+  if (mode === 'multiply' && dragBlock.value * otherBlock.value <= MAX_NUMBER) {
+    return true;
+  }
+  if (!isSubtractDrag(dragBlock) && mode !== 'multiply' && dragBlock.value + otherBlock.value <= MAX_NUMBER) {
     return true;
   }
   return false;
@@ -1276,11 +1280,13 @@ function mergeBlocks(id1, id2) {
 
   let newVal, bigBlock, smallBlock;
   if (isSubtract) {
-    // The subtractor is dragged onto the bigger block
-    if (b1.isSubtractor) { smallBlock = b1; bigBlock = b2; }
+    if (isSubtractDrag(b1)) { smallBlock = b1; bigBlock = b2; }
     else { smallBlock = b2; bigBlock = b1; }
     newVal = bigBlock.value - smallBlock.value;
     if (newVal < 1) return;
+  } else if (mode === 'multiply') {
+    newVal = b1.value * b2.value;
+    if (newVal > MAX_NUMBER) return;
   } else {
     newVal = b1.value + b2.value;
     if (newVal > MAX_NUMBER) return;
@@ -1326,7 +1332,7 @@ function mergeBlocks(id1, id2) {
   }
 
   // Check guided mode answer
-  if ((mode === 'guided' || mode === 'subtract') && guidedProblem) {
+  if ((mode === 'guided' || mode === 'subtract' || mode === 'multiply') && guidedProblem) {
     if (newVal === guidedProblem.answer) {
       onGuidedMerge(newVal);
     }
@@ -1604,11 +1610,12 @@ function setMode(m) {
     const text = btn.textContent.toLowerCase();
     const active = (m === 'free' && text.includes('free')) ||
                    (m === 'guided' && text.includes('addition')) ||
-                   (m === 'subtract' && text.includes('subtraction'));
+                   (m === 'subtract' && text.includes('subtraction')) ||
+                   (m === 'multiply' && text.includes('multiplication'));
     btn.classList.toggle('active', active);
   });
 
-  const isGuided = m === 'guided' || m === 'subtract';
+  const isGuided = m === 'guided' || m === 'subtract' || m === 'multiply';
   guidedPanel.style.display = isGuided ? 'block' : 'none';
 
   // Show subtract toggle only in free play
@@ -1629,27 +1636,36 @@ function nextGuidedProblem() {
 
   let a, b, answer, opSymbol;
 
+  let op;
   if (mode === 'subtract') {
-    // Subtraction: a - b where a > b, both reasonable
-    a = Math.floor(Math.random() * 15) + 3; // 3..17
-    b = Math.floor(Math.random() * Math.min(a - 1, 10)) + 1; // 1..min(a-1, 10)
+    a = Math.floor(Math.random() * 15) + 3;
+    b = Math.floor(Math.random() * Math.min(a - 1, 10)) + 1;
     answer = a - b;
-    opSymbol = '\u2212'; // minus sign
+    opSymbol = '\u2212';
+    op = 'sub';
+  } else if (mode === 'multiply') {
+    // Multiplication: keep factors small, product <= 100
+    a = Math.floor(Math.random() * 9) + 2; // 2..10
+    b = Math.floor(Math.random() * Math.min(Math.floor(100 / a) - 1, 9)) + 2; // 2..min(floor(100/a), 10)
+    answer = a * b;
+    opSymbol = '\u00d7';
+    op = 'mul';
   } else {
-    // Addition: a + b <= 20 (keep problems manageable for kids)
     a = Math.floor(Math.random() * 10) + 1;
     const maxB = Math.min(20 - a, 10);
     b = Math.floor(Math.random() * maxB) + 1;
     answer = a + b;
     opSymbol = '+';
+    op = 'add';
   }
 
-  guidedProblem = { a, b, answer, guess: null, resolved: false, op: mode === 'subtract' ? 'sub' : 'add' };
+  guidedProblem = { a, b, answer, guess: null, resolved: false, op };
 
   document.getElementById('guided-question').textContent = `${a} ${opSymbol} ${b} = ?`;
-  const hint = mode === 'subtract'
-    ? 'Pick your answer, then drag the red block onto the big one to take away!'
-    : 'Pick your answer, then put the blocks together to check!';
+  let hint;
+  if (mode === 'subtract') hint = 'Pick your answer, then drag the red block onto the big one to take away!';
+  else if (mode === 'multiply') hint = 'Pick your answer, then put the blocks together to check!';
+  else hint = 'Pick your answer, then put the blocks together to check!';
   document.getElementById('guided-hint').textContent = hint;
 
   // Build answer choices: correct + 3 wrong, shuffled
@@ -1659,9 +1675,17 @@ function nextGuidedProblem() {
   const wrongSet = new Set();
   wrongSet.add(answer);
   const minAnswer = 1;
-  const maxAnswer = 20;
+  const maxAnswer = mode === 'multiply' ? 100 : 20;
   while (wrongSet.size < 4) {
-    let wrong = answer + Math.floor(Math.random() * 7) - 3;
+    // For multiplication, generate plausible wrong answers (nearby products)
+    let wrong;
+    if (mode === 'multiply') {
+      // Use neighboring products for plausibility
+      const offsets = [-2, -1, 1, 2, -a, a, -b, b];
+      wrong = answer + offsets[Math.floor(Math.random() * offsets.length)];
+    } else {
+      wrong = answer + Math.floor(Math.random() * 7) - 3;
+    }
     if (wrong < minAnswer) wrong = answer + Math.floor(Math.random() * 3) + 1;
     if (wrong > maxAnswer) wrong = answer - Math.floor(Math.random() * 3) - 1;
     if (wrong >= minAnswer && wrong <= maxAnswer && wrong !== answer) wrongSet.add(wrong);
@@ -1734,7 +1758,7 @@ function onGuidedMerge(mergedValue) {
   guidedProblem.resolved = true;
 
   const { a, b, answer, guess, op } = guidedProblem;
-  const sym = op === 'sub' ? '\u2212' : '+';
+  const sym = op === 'sub' ? '\u2212' : op === 'mul' ? '\u00d7' : '+';
   const choicesContainer = document.getElementById('answer-choices');
 
   // Reveal correct/wrong on answer buttons
