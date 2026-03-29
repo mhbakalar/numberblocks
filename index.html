@@ -1292,12 +1292,8 @@ function mergeBlocks(id1, id2) {
   if (isSubtract) {
     // Poof the subtractor, then transform the big block
     const smallEl = getBlockEl(smallBlock.id);
-    if (smallEl) {
-      smallEl.classList.add('poof');
-      smallEl.addEventListener('animationend', () => removeBlock(smallBlock.id));
-    } else {
-      removeBlock(smallBlock.id);
-    }
+    // Remove the subtracted block immediately
+    removeBlock(smallBlock.id);
     playSplitSound();
 
     // Transform the big block into the result
