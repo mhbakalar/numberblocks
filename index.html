@@ -64,7 +64,7 @@
   #playground {
     position: relative;
     width: 100vw;
-    height: calc(100vh - 95px - 80px);
+    height: calc(100vh - 95px - 105px);
     overflow: hidden;
   }
 
@@ -309,15 +309,31 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 80px;
+    height: 105px;
     background: rgba(255,255,255,0.95);
     border-top: 3px solid #ddd;
     display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 4px 70px 4px 10px;
+    z-index: 200;
+  }
+
+  .tray-row {
+    display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 0 70px 0 10px;
-    z-index: 200;
+    gap: 5px;
+  }
+
+  .tray-row-label {
+    font-size: 10px;
+    font-weight: bold;
+    color: #aaa;
+    width: 30px;
+    text-align: right;
+    flex-shrink: 0;
   }
 
   .tray-block {
@@ -329,19 +345,19 @@
 
   .tray-label {
     text-align: center;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: bold;
     color: #555;
-    margin-top: 2px;
+    margin-top: 1px;
   }
 
   #clear-btn {
     position: absolute;
-    right: 15px;
+    right: 10px;
     top: 50%;
     transform: translateY(-50%);
-    padding: 8px 18px;
-    font-size: 14px;
+    padding: 6px 14px;
+    font-size: 12px;
     font-family: inherit;
     border: 2px solid #ff6b6b;
     border-radius: 15px;
@@ -387,13 +403,13 @@
   }
   .poof { animation: poof 0.35s ease-out forwards; }
 
-  /* Bounce animation for new blocks */
+  /* Bounce animation for new blocks — uses filter instead of transform to avoid conflicting with scale */
   @keyframes pop-in {
-    0% { transform: scale(0); }
-    60% { transform: scale(1.2); }
-    100% { transform: scale(1); }
+    0% { opacity: 0; }
+    60% { opacity: 1; }
+    100% { opacity: 1; }
   }
-  .pop-in { animation: pop-in 0.35s ease-out; }
+  .pop-in { animation: pop-in 0.25s ease-out; }
 
   /* Merge flash */
   @keyframes merge-flash {
@@ -422,141 +438,205 @@
 </div>
 
 <div id="tray">
+  <div class="tray-row" id="tray-ones"></div>
+  <div class="tray-row" id="tray-tens"></div>
   <button id="clear-btn" onclick="clearPlayground()">Clear All</button>
 </div>
 
 <script>
 // ==================== CONFIG ====================
 const BLOCK_SIZE = 48;
-const MAX_NUMBER = 20;
+const MAX_NUMBER = 100;
 
-const COLORS = {
-  1:  '#DE151D',  // red
-  2:  '#E89223',  // orange
-  3:  '#E6C40C',  // yellow
-  4:  '#38B500',  // green
-  5:  '#23B0DB',  // cyan
-  6:  '#5A35C3',  // indigo/purple
-  7:  '#BA79DD',  // violet (fallback, but Seven is rainbow)
-  8:  '#FD40A4',  // pink
-  9:  '#A5A9AC',  // grey (middle shade)
-  10: '#EEEEEE',  // white
-  11: '#DE151D',  // ones digit color: red (1)
-  12: '#E89223',  // ones digit color: orange (2)
-  13: '#E6C40C',  // ones digit color: yellow (3)
-  14: '#38B500',  // ones digit color: green (4)
-  15: '#23B0DB',  // ones digit color: cyan (5)
-  16: '#5A35C3',  // ones digit color: indigo (6)
-  17: '#BA79DD',  // ones digit color: violet (7)
-  18: '#FD40A4',  // ones digit color: pink (8)
-  19: '#A5A9AC',  // ones digit color: grey (9)
-  20: '#F0A050',  // light orange
+// Base colors for digits 1-9, plus 10
+const DIGIT_COLORS = {
+  1: '#DE151D',  // red
+  2: '#E89223',  // orange
+  3: '#E6C40C',  // yellow
+  4: '#38B500',  // green
+  5: '#23B0DB',  // cyan
+  6: '#5A35C3',  // indigo/purple
+  7: '#BA79DD',  // violet
+  8: '#FD40A4',  // pink
+  9: '#A5A9AC',  // grey
 };
 
-// Six has periwinkle spots on each block
 const SIX_SPOT_COLOR = '#8198FF';
+const NINE_SHADES = ['#8A8B8F', '#A5A9AC', '#C4C8CB']; // dark, medium, light
+const RAINBOW_7 = ['#DE151D', '#E89223', '#E6C40C', '#38B500', '#23B0DB', '#5A35C3', '#BA79DD'];
+const TEN_COLOR = '#EEEEEE';
+const TEN_BORDER = '#DE151D';
 
-// Nine has 3 shades of grey — bottom row dark, middle row medium, top row light
-const NINE_COLORS = {
-  0: '#8A8B8F',  // bottom row - dark grey
-  1: '#A5A9AC',  // middle row - medium grey
-  2: '#C4C8CB',  // top row - light grey
-};
-
-// Ten is white with a red border
-const TEN_BORDER_COLOR = '#DE151D';
-
-// Twenty is light orange with orange border
-const TWENTY_BORDER_COLOR = '#E89223';
-
-// 7 is a rainbow — each unit block gets a different color (bottom to top: 1-7)
-const RAINBOW_7 = [
-  '#DE151D', '#E89223', '#E6C40C', '#38B500', '#23B0DB', '#5A35C3', '#BA79DD'
-];
-
-// Block arrangements: array of [col, row] offsets (0-indexed, row 0 = bottom)
-// For 11-19, blocks are tagged 'ten' or 'ones' via BLOCK_TAGS
-const SHAPES = {
+// Hand-crafted shapes for 1-20 (col, row offsets; row 0 = bottom)
+const SHAPES_1_20 = {
   1:  [[0,0]],
   2:  [[0,0],[0,1]],
   3:  [[0,0],[0,1],[0,2]],
   4:  [[0,0],[1,0],[0,1],[1,1]],
   5:  [[0,0],[0,1],[0,2],[0,3],[0,4]],
   6:  [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2]],
-  7:  [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6]], // single column rainbow
+  7:  [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6]],
   8:  [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3]],
   9:  [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2]],
   10: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4]],
-  // 11: ten (2x5) + 1 red on top-right
-  11: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],
-       [2,0]],
-  // 12: 3x4 rectangle (super rectangle)
+  11: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],[2,0]],
   12: [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2],[0,3],[1,3],[2,3]],
-  // 13: ten (2x5) + 3 yellow stacked on right
-  13: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],
-       [2,0],[2,1],[2,2]],
-  // 14: 2x7 rectangle
+  13: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],[2,0],[2,1],[2,2]],
   14: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],[0,5],[1,5],[0,6],[1,6]],
-  // 15: staircase (triangular) — 5 cols: heights 1,2,3,4,5
-  15: [[0,0],
-       [1,0],[1,1],
-       [2,0],[2,1],[2,2],
-       [3,0],[3,1],[3,2],[3,3],
-       [4,0],[4,1],[4,2],[4,3],[4,4]],
-  // 16: 4x4 square
+  15: [[0,0],[1,0],[1,1],[2,0],[2,1],[2,2],[3,0],[3,1],[3,2],[3,3],[4,0],[4,1],[4,2],[4,3],[4,4]],
   16: [[0,0],[1,0],[2,0],[3,0],[0,1],[1,1],[2,1],[3,1],[0,2],[1,2],[2,2],[3,2],[0,3],[1,3],[2,3],[3,3]],
-  // 17: ten (2x5) + 7 rainbow column on right
-  17: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],
-       [2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6]],
-  // 18: 3x6 rectangle
+  17: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6]],
   18: [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2],[0,3],[1,3],[2,3],[0,4],[1,4],[2,4],[0,5],[1,5],[2,5]],
-  // 19: ten (2x5) + 9 (3x3) on right
-  19: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],
-       [2,0],[3,0],[4,0],[2,1],[3,1],[4,1],[2,2],[3,2],[4,2]],
-  // 20: 2x10 rectangle (two tens side by side)
-  20: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],
-       [0,5],[1,5],[0,6],[1,6],[0,7],[1,7],[0,8],[1,8],[0,9],[1,9]],
+  19: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],[2,0],[3,0],[4,0],[2,1],[3,1],[4,1],[2,2],[3,2],[4,2]],
+  20: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],[0,5],[1,5],[0,6],[1,6],[0,7],[1,7],[0,8],[1,8],[0,9],[1,9]],
 };
 
-// For composite numbers 11-19: which blocks are "ten" (white/red) vs "ones" (colored)
-// Index into the SHAPES array. First 10 entries are the ten-block, rest are ones.
-// For 12, 14, 15, 16, 18: special rectangle/staircase arrangements use mixed coloring
-function getBlockType(value, idx) {
-  if (value >= 11 && value <= 19) {
-    return idx < 10 ? 'ten' : 'ones';
-  }
-  return 'self';
-}
-
-// Get the ones-digit color for a teen number
-function getOnesColor(value, onesIdx) {
-  const ones = value - 10;
-  // Special: 17's ones blocks are rainbow (like 7)
-  if (value === 17) return RAINBOW_7[onesIdx];
-  // Special: 19's ones blocks use 3 shades of grey (like 9)
-  if (value === 19) {
-    const [c, r] = SHAPES[19][10 + onesIdx];
-    const localRow = r; // row within the 3x3
-    return NINE_COLORS[localRow] || COLORS[9];
-  }
-  return COLORS[ones] || COLORS[value];
-}
-
-// For special rectangle arrangements (12, 14, 15, 16, 18), define ten vs ones blocks explicitly
-const COMPOSITE_TEN_INDICES = {
-  // 12: 3x4 — ten blocks form a U/border, 2 orange in middle
-  // Arranged as 3x4: ten = outer, ones = [4,7] (middle of rows 1,2)
-  12: new Set([0,1,2, 3,5, 6,8, 9,10,11]), // ten blocks (indices), ones = 4,7
-  // 14: 2x7 — bottom 5 rows (10 blocks) = ten, top 2 rows (4 blocks) = ones
+// For 11-19 special shapes: which indices are ten-blocks
+const TEEN_TEN_INDICES = {
+  12: new Set([0,1,2, 3,5, 6,8, 9,10,11]),
   14: new Set([0,1,2,3,4,5,6,7,8,9]),
-  // 15: staircase — ten blocks are the bottom/left, ones are the top/right
   15: new Set([0, 1,2, 3,4,5, 6,7,8,9]),
-  // 16: 4x4 — 10 blocks = ten, 6 blocks = ones (indigo)
-  // Six indigo shaped like a hat on top, ten below
   16: new Set([0,1,2,3, 4,5,6,7, 8,9]),
-  // 18: 3x6 — ten blocks fill one area, 8 pink fill the rest
   18: new Set([0,1, 3,4, 6,7, 9,10, 12,13]),
 };
+
+// Generate shape for any number 1-100
+function getShape(n) {
+  if (n <= 20) return SHAPES_1_20[n];
+
+  const tens = Math.floor(n / 10);
+  const ones = n % 10;
+  const shape = [];
+
+  // Full rows of 10 for the tens portion
+  for (let row = 0; row < tens; row++) {
+    for (let col = 0; col < 10; col++) {
+      shape.push([col, row]);
+    }
+  }
+
+  // Ones digit blocks on top, using the 1-9 shapes
+  if (ones > 0) {
+    const onesShape = SHAPES_1_20[ones];
+    for (const [c, r] of onesShape) {
+      shape.push([c, tens + r]);
+    }
+  }
+
+  return shape;
+}
+
+// Scale factor so large blocks fit on screen
+function scaleFor(n) {
+  if (n <= 20) return 1;
+  if (n <= 40) return 0.55;
+  return 0.4;
+}
+
+// Get the color + border for a single unit block
+function getUnitStyle(value, shape, idx) {
+  const [col, row] = shape[idx];
+
+  // --- Numbers 1-10: original logic ---
+  if (value <= 10) {
+    if (value === 7) return { bg: RAINBOW_7[idx], border: null, dot: false };
+    if (value === 9) return { bg: NINE_SHADES[row] || DIGIT_COLORS[9], border: null, dot: false };
+    if (value === 10) return { bg: TEN_COLOR, border: TEN_BORDER, dot: false };
+    if (value === 6) return { bg: DIGIT_COLORS[6], border: null, dot: true };
+    return { bg: DIGIT_COLORS[value], border: null, dot: false };
+  }
+
+  // --- Numbers 11-20: hand-crafted layouts ---
+  if (value <= 20) {
+    if (value === 20) return { bg: '#F0A050', border: '#E89223', dot: false };
+
+    // Determine ten vs ones block
+    let isTen;
+    if (TEEN_TEN_INDICES[value]) {
+      isTen = TEEN_TEN_INDICES[value].has(idx);
+    } else {
+      isTen = idx < 10;
+    }
+
+    if (isTen) return { bg: TEN_COLOR, border: TEN_BORDER, dot: false };
+
+    // Ones block
+    const ones = value - 10;
+    const onesIdx = countOnesBeforeIdx(value, idx);
+    if (ones === 7) return { bg: RAINBOW_7[onesIdx], border: null, dot: false };
+    if (ones === 9) {
+      const onesShape = SHAPES_1_20[9];
+      const localRow = onesShape[onesIdx]?.[1] || 0;
+      return { bg: NINE_SHADES[localRow] || DIGIT_COLORS[9], border: null, dot: false };
+    }
+    return { bg: DIGIT_COLORS[ones], border: null, dot: false };
+  }
+
+  // --- Numbers 21-100: generated layouts ---
+  const tens = Math.floor(value / 10);
+  const ones = value % 10;
+  const numTenBlocks = tens * 10;
+  const isTenBlock = idx < numTenBlocks;
+
+  if (isTenBlock) {
+    const tensDigit = tens;
+    // Rainbow 70s: each row a different color
+    if (tensDigit === 7) return { bg: RAINBOW_7[row], border: null, dot: false };
+    // Grey 90s: 3 groups of 3 rows
+    if (tensDigit === 9) {
+      const shade = Math.min(Math.floor(row / 3), 2);
+      return { bg: NINE_SHADES[shade], border: null, dot: false };
+    }
+    // 100 (tensDigit=10)
+    if (tensDigit === 10) return { bg: TEN_COLOR, border: TEN_BORDER, dot: false };
+    // Decade colors
+    const color = DIGIT_COLORS[tensDigit];
+    const needsBorder = (tensDigit === 2) ? '#E89223' : null;
+    return { bg: color, border: needsBorder, dot: (tensDigit === 6) };
+  } else {
+    // Ones blocks (on top)
+    const onesIdx = idx - numTenBlocks;
+    if (ones === 7) return { bg: RAINBOW_7[onesIdx], border: null, dot: false };
+    if (ones === 9) {
+      const localRow = SHAPES_1_20[9][onesIdx]?.[1] || 0;
+      return { bg: NINE_SHADES[localRow], border: null, dot: false };
+    }
+    return { bg: DIGIT_COLORS[ones] || '#999', border: null, dot: (ones === 6) };
+  }
+}
+
+// Helper: count how many ones-blocks appear before index idx (for teen numbers)
+function countOnesBeforeIdx(value, idx) {
+  let count = 0;
+  const tenSet = TEEN_TEN_INDICES[value];
+  for (let i = 0; i < idx; i++) {
+    if (tenSet) { if (!tenSet.has(i)) count++; }
+    else { if (i >= 10) count++; }
+  }
+  return count;
+}
+
+// Get display color for tray swatch / mini-block (simple representative color)
+function getSwatchStyle(n) {
+  if (n <= 10) {
+    if (n === 7) return { bg: null, gradient: 'linear-gradient(to top, #DE151D, #E89223, #E6C40C, #38B500, #23B0DB, #5A35C3, #BA79DD)', border: null };
+    if (n === 10) return { bg: TEN_COLOR, gradient: null, border: TEN_BORDER };
+    return { bg: DIGIT_COLORS[n], gradient: null, border: null };
+  }
+  const tens = Math.floor(n / 10);
+  const ones = n % 10;
+  if (ones === 0) {
+    // Multiples of 10
+    if (tens === 7) return { bg: null, gradient: 'linear-gradient(to top, #DE151D, #E89223, #E6C40C, #38B500, #23B0DB, #5A35C3, #BA79DD)', border: null };
+    if (tens === 10) return { bg: TEN_COLOR, gradient: null, border: TEN_BORDER };
+    if (tens === 2) return { bg: '#F0A050', gradient: null, border: '#E89223' };
+    return { bg: DIGIT_COLORS[tens], gradient: null, border: null };
+  }
+  // Non-multiples: split swatch (tens color bottom, ones color top)
+  const tensColor = (tens === 7) ? '#BA79DD' : (tens === 2 ? '#F0A050' : (tens === 10 ? TEN_COLOR : DIGIT_COLORS[tens]));
+  const onesColor = (ones === 7) ? '#BA79DD' : DIGIT_COLORS[ones];
+  return { bg: null, gradient: `linear-gradient(to top, ${onesColor} 40%, ${tensColor} 40%)`, border: null };
+}
 
 // ==================== STATE ====================
 let blocks = [];
@@ -572,7 +652,7 @@ const guidedPanel = document.getElementById('guided-panel');
 
 // ==================== NUMBERBLOCK RENDERING ====================
 function getShapeBounds(n) {
-  const shape = SHAPES[n];
+  const shape = getShape(n);
   let maxCol = 0, maxRow = 0;
   for (const [c, r] of shape) {
     if (c > maxCol) maxCol = c;
@@ -583,9 +663,9 @@ function getShapeBounds(n) {
 
 function createBlockElement(block) {
   const { id, value, x, y } = block;
-  const shape = SHAPES[value];
+  const shape = getShape(value);
   const bounds = getShapeBounds(value);
-  const color = COLORS[value] || '#999';
+  const scale = scaleFor(value);
 
   const el = document.createElement('div');
   el.className = 'numberblock pop-in';
@@ -593,7 +673,12 @@ function createBlockElement(block) {
   el.style.left = x + 'px';
   el.style.top = y + 'px';
   el.style.width = (bounds.cols * BLOCK_SIZE) + 'px';
-  el.style.height = (bounds.rows * BLOCK_SIZE + 36) + 'px'; // extra for face
+  el.style.height = (bounds.rows * BLOCK_SIZE + 36) + 'px';
+
+  if (scale < 1) {
+    el.style.transform = `scale(${scale})`;
+    el.style.transformOrigin = 'top left';
+  }
 
   // Face
   const face = document.createElement('div');
@@ -624,77 +709,25 @@ function createBlockElement(block) {
   face.appendChild(mouth);
   el.appendChild(face);
 
-  // Unit blocks (offset down by face height)
+  // Unit blocks
   const faceHeight = 36;
-  let onesIdx = 0;
   shape.forEach(([c, r], idx) => {
     const unit = document.createElement('div');
     unit.className = 'block-unit';
 
-    let unitColor = color;
-    let isTenBlock = false;
-
-    if (value <= 10) {
-      // Original 1-10 logic
-      if (value === 7) {
-        unitColor = RAINBOW_7[idx];
-      } else if (value === 9) {
-        unitColor = NINE_COLORS[r] || color;
-      }
-      if (value === 10) isTenBlock = true;
-    } else if (value === 20) {
-      // Twenty: all light orange with orange border
-      unitColor = COLORS[20];
-    } else if (value >= 11 && value <= 19) {
-      // Teen numbers: composite ten + ones
-      if (COMPOSITE_TEN_INDICES[value]) {
-        // Special rectangle/staircase arrangements
-        if (COMPOSITE_TEN_INDICES[value].has(idx)) {
-          isTenBlock = true;
-          unitColor = '#EEEEEE';
-        } else {
-          unitColor = getOnesColor(value, onesIdx);
-          onesIdx++;
-        }
-      } else {
-        // Standard ten-and-ones layout (11, 13, 17, 19)
-        const btype = getBlockType(value, idx);
-        if (btype === 'ten') {
-          isTenBlock = true;
-          unitColor = '#EEEEEE';
-        } else {
-          unitColor = getOnesColor(value, onesIdx);
-          onesIdx++;
-        }
-      }
-    }
-
-    unit.style.backgroundColor = unitColor;
-
-    // White/red border for ten-blocks
-    if (isTenBlock) {
-      unit.style.borderColor = TEN_BORDER_COLOR;
-      unit.style.borderWidth = '3px';
-    }
-
-    // Twenty: orange border
-    if (value === 20) {
-      unit.style.borderColor = TWENTY_BORDER_COLOR;
+    const style = getUnitStyle(value, shape, idx);
+    unit.style.backgroundColor = style.bg;
+    if (style.border) {
+      unit.style.borderColor = style.border;
       unit.style.borderWidth = '3px';
     }
 
     unit.style.left = (c * BLOCK_SIZE) + 'px';
     unit.style.top = (faceHeight + (bounds.rows - 1 - r) * BLOCK_SIZE) + 'px';
 
-    // Six: periwinkle dot on each block
-    if (value === 6) {
+    if (style.dot) {
       const dot = document.createElement('div');
-      dot.style.cssText = `
-        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        width: 12px; height: 12px; border-radius: 50%;
-        background: ${SIX_SPOT_COLOR};
-      `;
-      unit.style.position = 'absolute';
+      dot.style.cssText = `position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;border-radius:50%;background:${SIX_SPOT_COLOR};`;
       unit.appendChild(dot);
     }
 
@@ -706,6 +739,7 @@ function createBlockElement(block) {
   label.className = 'block-number';
   label.textContent = value;
   label.style.bottom = '4px';
+  if (value > 20) label.style.fontSize = '28px';
   el.appendChild(label);
 
   // Events
@@ -949,16 +983,38 @@ function mergeBlocks(id1, id2) {
 }
 
 function styleMiniBlock(el, n) {
-  if (n === 7 || n === 17) {
-    el.style.background = 'linear-gradient(to top, #DE151D, #E89223, #E6C40C, #38B500, #23B0DB, #5A35C3, #BA79DD)';
-  } else if (n >= 11 && n <= 19) {
-    const onesColor = COLORS[n - 10] || '#999';
-    el.style.background = `linear-gradient(to top, ${onesColor} 40%, #EEEEEE 40%)`;
-  } else {
-    el.style.backgroundColor = COLORS[n];
+  const s = getSwatchStyle(n);
+  if (s.gradient) el.style.background = s.gradient;
+  else el.style.backgroundColor = s.bg || '#999';
+  if (s.border) el.style.border = '2px solid ' + s.border;
+}
+
+function getSplitOptions(n) {
+  if (n <= 20) {
+    // Show all options for small numbers
+    const opts = [];
+    for (let i = 1; i <= Math.floor(n / 2); i++) opts.push([i, n - i]);
+    return opts;
   }
-  if (n === 10 || (n >= 11 && n <= 19)) el.style.border = '2px solid #DE151D';
-  if (n === 20) el.style.border = '2px solid #E89223';
+  // For larger numbers, show: tens-based splits + a few interesting ones
+  const opts = new Set();
+  const tens = Math.floor(n / 10);
+  const ones = n % 10;
+
+  // Split off the ones digit (e.g., 37 → 30 + 7)
+  if (ones > 0) opts.add(`${ones},${n - ones}`);
+  // Split into tens (e.g., 60 → 30 + 30, 50 + 10)
+  for (let t = 1; t < tens; t++) {
+    opts.add(`${t * 10},${n - t * 10}`);
+  }
+  // Split off small numbers 1-10
+  for (let i = 1; i <= Math.min(10, Math.floor(n / 2)); i++) {
+    opts.add(`${i},${n - i}`);
+  }
+  // Half
+  if (n % 2 === 0) opts.add(`${n/2},${n/2}`);
+
+  return Array.from(opts).map(s => s.split(',').map(Number)).sort((a, b) => a[0] - b[0]);
 }
 
 // ==================== SPLIT ====================
@@ -986,9 +1042,9 @@ function showSplitMenu(block, mx, my) {
   title.textContent = `Split ${block.value} into...`;
   menu.appendChild(title);
 
-  // Generate split options
-  for (let i = 1; i <= Math.floor(block.value / 2); i++) {
-    const j = block.value - i;
+  // Generate smart split options
+  const splits = getSplitOptions(block.value);
+  for (const [i, j] of splits) {
     const option = document.createElement('div');
     option.className = 'split-option';
 
@@ -1041,7 +1097,8 @@ function splitBlock(id, a, b) {
   if (!block) return;
 
   const boundsA = getShapeBounds(a);
-  const boundsB = getShapeBounds(b);
+  const scaleA = scaleFor(a);
+  const scaleB = scaleFor(b);
 
   playSplitSound();
 
@@ -1049,119 +1106,118 @@ function splitBlock(id, a, b) {
   const y = block.y;
   removeBlock(id);
 
-  spawnBlock(a, x - boundsA.cols * BLOCK_SIZE / 2 - 20, y);
-  spawnBlock(b, x + boundsB.cols * BLOCK_SIZE / 2 + 20, y);
+  const wA = boundsA.cols * BLOCK_SIZE * scaleA;
+  spawnBlock(a, x - wA / 2 - 20, y);
+  spawnBlock(b, x + 20, y);
 }
 
 // ==================== TRAY ====================
 function buildTray() {
-  // Remove old tray items
-  tray.querySelectorAll('.tray-block').forEach(el => el.remove());
+  const onesRow = document.getElementById('tray-ones');
+  const tensRow = document.getElementById('tray-tens');
+  onesRow.innerHTML = '';
+  tensRow.innerHTML = '';
 
-  for (let n = 1; n <= MAX_NUMBER; n++) {
-    const item = document.createElement('div');
-    item.className = 'tray-block';
-
-    const swatch = document.createElement('div');
-    swatch.style.width = '32px';
-    swatch.style.height = '32px';
-    swatch.style.borderRadius = '8px';
-    if (n === 7 || n === 17) {
-      swatch.style.background = 'linear-gradient(to top, #DE151D, #E89223, #E6C40C, #38B500, #23B0DB, #5A35C3, #BA79DD)';
-    } else if (n >= 11 && n <= 19) {
-      // Teen: split swatch — white top, ones-color bottom
-      const onesColor = COLORS[n - 10] || '#999';
-      swatch.style.background = `linear-gradient(to top, ${onesColor} 40%, #EEEEEE 40%)`;
-    } else {
-      swatch.style.backgroundColor = COLORS[n];
-    }
-    if (n === 10 || (n >= 11 && n <= 19)) {
-      swatch.style.border = '3px solid #DE151D';
-    } else if (n === 20) {
-      swatch.style.border = '3px solid #E89223';
-    } else {
-      swatch.style.border = '2px solid rgba(0,0,0,0.15)';
-    }
-    swatch.style.boxShadow = 'inset 0 -2px 0 rgba(0,0,0,0.15)';
-    swatch.style.margin = '0 auto';
-
-    const label = document.createElement('div');
-    label.className = 'tray-label';
-    label.textContent = n;
-
-    item.appendChild(swatch);
-    item.appendChild(label);
-
-    // Support both tap and drag-from-tray
-    let trayDragState = null;
-
-    item.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      const pgRect = playground.getBoundingClientRect();
-      const bounds = getShapeBounds(n);
-      // Spawn block at pointer position (offset into playground)
-      const spawnX = e.clientX - pgRect.left - (bounds.cols * BLOCK_SIZE) / 2;
-      const spawnY = e.clientY - pgRect.top - (bounds.rows * BLOCK_SIZE) / 2;
-      const newBlock = spawnBlock(n, spawnX, Math.max(10, spawnY));
-      if (!newBlock) return;
-
-      const el = getBlockEl(newBlock.id);
-      trayDragState = { id: newBlock.id, moved: false, startX: e.clientX, startY: e.clientY };
-
-      // Immediately start dragging the new block
-      const bRect = el.getBoundingClientRect();
-      dragState = {
-        id: newBlock.id,
-        offsetX: e.clientX - bRect.left,
-        offsetY: e.clientY - bRect.top,
-        startX: newBlock.x,
-        startY: newBlock.y,
-        moved: false,
-        pgOffsetX: pgRect.left,
-        pgOffsetY: pgRect.top,
-      };
-      el.classList.add('dragging');
-
-      const onMove = (ev) => {
-        if (!dragState) return;
-        dragState.moved = true;
-        if (trayDragState) trayDragState.moved = true;
-        const nx = ev.clientX - dragState.pgOffsetX - dragState.offsetX;
-        const ny = ev.clientY - dragState.pgOffsetY - dragState.offsetY;
-        updateBlockPosition(dragState.id, nx, ny);
-        clearMergeHighlights();
-        const target = findMergeTarget(dragState.id);
-        if (target) getBlockEl(target.id)?.classList.add('merge-target');
-      };
-
-      const onUp = (ev) => {
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
-        if (!dragState) return;
-        el.classList.remove('dragging');
-        clearMergeHighlights();
-
-        if (!trayDragState?.moved) {
-          // It was a tap — place block in center of playground
-          const cx = pgRect.width / 2 - (bounds.cols * BLOCK_SIZE) / 2 + (Math.random() - 0.5) * 100;
-          const cy = pgRect.height / 2 - (bounds.rows * BLOCK_SIZE) / 2 - 40 + (Math.random() - 0.5) * 60;
-          updateBlockPosition(newBlock.id, Math.max(10, cx), Math.max(50, cy));
-        } else {
-          const target = findMergeTarget(dragState.id);
-          if (target) mergeBlocks(dragState.id, target.id);
-        }
-
-        dragState = null;
-        trayDragState = null;
-      };
-
-      document.addEventListener('pointermove', onMove);
-      document.addEventListener('pointerup', onUp);
-    });
-
-    // Insert before the clear button
-    tray.insertBefore(item, document.getElementById('clear-btn'));
+  // Row 1: digits 1-10
+  for (let n = 1; n <= 10; n++) {
+    onesRow.appendChild(makeTrayItem(n));
   }
+
+  // Row 2: multiples of 10 from 20-100
+  for (let n = 20; n <= 100; n += 10) {
+    tensRow.appendChild(makeTrayItem(n));
+  }
+}
+
+function makeTrayItem(n) {
+  const item = document.createElement('div');
+  item.className = 'tray-block';
+
+  const swatch = document.createElement('div');
+  swatch.style.width = '28px';
+  swatch.style.height = '28px';
+  swatch.style.borderRadius = '6px';
+  swatch.style.margin = '0 auto';
+  swatch.style.boxShadow = 'inset 0 -2px 0 rgba(0,0,0,0.15)';
+
+  const s = getSwatchStyle(n);
+  if (s.gradient) swatch.style.background = s.gradient;
+  else swatch.style.backgroundColor = s.bg || '#999';
+  swatch.style.border = s.border ? '2px solid ' + s.border : '2px solid rgba(0,0,0,0.15)';
+
+  const label = document.createElement('div');
+  label.className = 'tray-label';
+  label.textContent = n;
+
+  item.appendChild(swatch);
+  item.appendChild(label);
+
+  // Support both tap and drag-from-tray
+  item.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const pgRect = playground.getBoundingClientRect();
+    const bounds = getShapeBounds(n);
+    const scale = scaleFor(n);
+    const scaledW = bounds.cols * BLOCK_SIZE * scale;
+    const scaledH = bounds.rows * BLOCK_SIZE * scale;
+
+    const spawnX = e.clientX - pgRect.left - scaledW / 2;
+    const spawnY = e.clientY - pgRect.top - scaledH / 2;
+    const newBlock = spawnBlock(n, spawnX, Math.max(10, spawnY));
+    if (!newBlock) return;
+
+    const el = getBlockEl(newBlock.id);
+    let moved = false;
+
+    const bRect = el.getBoundingClientRect();
+    dragState = {
+      id: newBlock.id,
+      offsetX: e.clientX - bRect.left,
+      offsetY: e.clientY - bRect.top,
+      startX: newBlock.x,
+      startY: newBlock.y,
+      moved: false,
+      pgOffsetX: pgRect.left,
+      pgOffsetY: pgRect.top,
+    };
+    el.classList.add('dragging');
+
+    const onMove = (ev) => {
+      if (!dragState) return;
+      dragState.moved = true;
+      moved = true;
+      const nx = ev.clientX - dragState.pgOffsetX - dragState.offsetX;
+      const ny = ev.clientY - dragState.pgOffsetY - dragState.offsetY;
+      updateBlockPosition(dragState.id, nx, ny);
+      clearMergeHighlights();
+      const target = findMergeTarget(dragState.id);
+      if (target) getBlockEl(target.id)?.classList.add('merge-target');
+    };
+
+    const onUp = (ev) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      if (!dragState) return;
+      el.classList.remove('dragging');
+      clearMergeHighlights();
+
+      if (!moved) {
+        const cx = pgRect.width / 2 - scaledW / 2 + (Math.random() - 0.5) * 100;
+        const cy = pgRect.height / 2 - scaledH / 2 - 40 + (Math.random() - 0.5) * 60;
+        updateBlockPosition(newBlock.id, Math.max(10, cx), Math.max(50, cy));
+      } else {
+        const target = findMergeTarget(dragState.id);
+        if (target) mergeBlocks(dragState.id, target.id);
+      }
+
+      dragState = null;
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  });
+
+  return item;
 }
 
 function clearPlayground() {
@@ -1206,9 +1262,9 @@ function nextGuidedProblem() {
     answer = a - b;
     opSymbol = '\u2212'; // minus sign
   } else {
-    // Addition: a + b <= 20
+    // Addition: a + b <= 20 (keep problems manageable for kids)
     a = Math.floor(Math.random() * 10) + 1;
-    const maxB = Math.min(MAX_NUMBER - a, 10);
+    const maxB = Math.min(20 - a, 10);
     b = Math.floor(Math.random() * maxB) + 1;
     answer = a + b;
     opSymbol = '+';
@@ -1229,11 +1285,12 @@ function nextGuidedProblem() {
   const wrongSet = new Set();
   wrongSet.add(answer);
   const minAnswer = 1;
+  const maxAnswer = 20;
   while (wrongSet.size < 4) {
     let wrong = answer + Math.floor(Math.random() * 7) - 3;
     if (wrong < minAnswer) wrong = answer + Math.floor(Math.random() * 3) + 1;
-    if (wrong > MAX_NUMBER) wrong = answer - Math.floor(Math.random() * 3) - 1;
-    if (wrong >= minAnswer && wrong <= MAX_NUMBER && wrong !== answer) wrongSet.add(wrong);
+    if (wrong > maxAnswer) wrong = answer - Math.floor(Math.random() * 3) - 1;
+    if (wrong >= minAnswer && wrong <= maxAnswer && wrong !== answer) wrongSet.add(wrong);
   }
 
   const choices = Array.from(wrongSet);
@@ -1250,21 +1307,10 @@ function nextGuidedProblem() {
 
     const swatch = document.createElement('div');
     swatch.className = 'answer-swatch';
-    // Style swatch like the numberblock color
-    if (val === 7 || val === 17) {
-      swatch.style.background = 'linear-gradient(to top, #DE151D, #E89223, #E6C40C, #38B500, #23B0DB, #5A35C3, #BA79DD)';
-    } else if (val >= 11 && val <= 19) {
-      swatch.style.background = `linear-gradient(to top, ${COLORS[val-10]} 40%, #EEEEEE 40%)`;
-      swatch.style.border = '2px solid #DE151D';
-    } else if (val === 20) {
-      swatch.style.backgroundColor = COLORS[20];
-      swatch.style.border = '2px solid #E89223';
-    } else if (val === 10) {
-      swatch.style.backgroundColor = '#EEEEEE';
-      swatch.style.border = '2px solid #DE151D';
-    } else {
-      swatch.style.backgroundColor = COLORS[val] || '#999';
-    }
+    const sw = getSwatchStyle(val);
+    if (sw.gradient) swatch.style.background = sw.gradient;
+    else swatch.style.backgroundColor = sw.bg || '#999';
+    if (sw.border) swatch.style.border = '2px solid ' + sw.border;
 
     const num = document.createElement('span');
     num.textContent = val;
