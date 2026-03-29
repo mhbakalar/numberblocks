@@ -66,7 +66,41 @@
     width: 100vw;
     height: calc(100vh - 95px - 105px);
     overflow: hidden;
+    touch-action: none;
   }
+
+  #play-surface {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    transform-origin: 0 0;
+  }
+
+  #zoom-controls {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    display: flex;
+    gap: 4px;
+    z-index: 60;
+  }
+  .zoom-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid #ccc;
+    background: rgba(255,255,255,0.9);
+    font-size: 20px;
+    line-height: 32px;
+    text-align: center;
+    cursor: pointer;
+    font-family: inherit;
+    color: #555;
+    transition: all 0.15s;
+    padding: 0;
+  }
+  .zoom-btn:hover { background: #eee; border-color: #999; }
 
   /* --- Numberblock rendering --- */
   .numberblock {
@@ -461,11 +495,18 @@
 </div>
 
 <div id="playground">
+  <div id="play-surface">
+  </div>
   <div id="trash-zone">🗑</div>
   <div id="guided-panel">
     <div id="guided-question"></div>
     <div id="guided-hint">Pick your answer, then put the blocks together to check!</div>
     <div id="answer-choices"></div>
+  </div>
+  <div id="zoom-controls">
+    <button class="zoom-btn" onclick="zoomIn()">+</button>
+    <button class="zoom-btn" onclick="zoomOut()">&minus;</button>
+    <button class="zoom-btn" onclick="zoomReset()" style="font-size:14px">↺</button>
   </div>
 </div>
 
@@ -727,6 +768,7 @@ let dragState = null;
 let splitMenu = null;
 
 const playground = document.getElementById('playground');
+const playSurface = document.getElementById('play-surface');
 const tray = document.getElementById('tray');
 const guidedPanel = document.getElementById('guided-panel');
 
@@ -839,18 +881,18 @@ function spawnBlock(value, x, y) {
   const block = { id: nextId++, value, x, y };
   blocks.push(block);
   const el = createBlockElement(block);
-  playground.appendChild(el);
+  playSurface.appendChild(el);
   return block;
 }
 
 function removeBlock(id) {
   blocks = blocks.filter(b => b.id !== id);
-  const el = playground.querySelector(`.numberblock[data-id="${id}"]`);
+  const el = playSurface.querySelector(`.numberblock[data-id="${id}"]`);
   if (el) el.remove();
 }
 
 function getBlockEl(id) {
-  return playground.querySelector(`.numberblock[data-id="${id}"]`);
+  return playSurface.querySelector(`.numberblock[data-id="${id}"]`);
 }
 
 function getBlock(id) {
@@ -868,6 +910,92 @@ function updateBlockPosition(id, x, y) {
     el.style.top = y + 'px';
   }
 }
+
+// ==================== ZOOM & PAN ====================
+let zoomLevel = 1;
+let panX = 0, panY = 0;
+
+function applyZoom() {
+  playSurface.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+}
+
+function zoomIn() { zoomTo(zoomLevel * 1.3); }
+function zoomOut() { zoomTo(zoomLevel / 1.3); }
+function zoomReset() { zoomLevel = 1; panX = 0; panY = 0; applyZoom(); }
+
+function zoomTo(newZoom, cx, cy) {
+  // cx, cy = zoom center in screen coords (optional)
+  newZoom = Math.max(0.2, Math.min(5, newZoom));
+  if (cx !== undefined && cy !== undefined) {
+    const pgRect = playground.getBoundingClientRect();
+    // Point in play-surface coords before zoom
+    const sx = (cx - pgRect.left - panX) / zoomLevel;
+    const sy = (cy - pgRect.top - panY) / zoomLevel;
+    // Adjust pan so the point stays under the cursor
+    panX = cx - pgRect.left - sx * newZoom;
+    panY = cy - pgRect.top - sy * newZoom;
+  }
+  zoomLevel = newZoom;
+  applyZoom();
+}
+
+// Convert screen coords to play-surface coords
+function screenToSurface(clientX, clientY) {
+  const pgRect = playground.getBoundingClientRect();
+  return {
+    x: (clientX - pgRect.left - panX) / zoomLevel,
+    y: (clientY - pgRect.top - panY) / zoomLevel,
+  };
+}
+
+// Mouse wheel zoom
+playground.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  zoomTo(zoomLevel * factor, e.clientX, e.clientY);
+}, { passive: false });
+
+// Pinch-to-zoom (touch)
+let pinchState = null;
+playground.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    const t = e.touches;
+    pinchState = {
+      dist: Math.hypot(t[1].clientX - t[0].clientX, t[1].clientY - t[0].clientY),
+      cx: (t[0].clientX + t[1].clientX) / 2,
+      cy: (t[0].clientY + t[1].clientY) / 2,
+      startZoom: zoomLevel,
+      startPanX: panX,
+      startPanY: panY,
+    };
+  }
+}, { passive: false });
+
+playground.addEventListener('touchmove', (e) => {
+  if (e.touches.length === 2 && pinchState) {
+    e.preventDefault();
+    const t = e.touches;
+    const dist = Math.hypot(t[1].clientX - t[0].clientX, t[1].clientY - t[0].clientY);
+    const cx = (t[0].clientX + t[1].clientX) / 2;
+    const cy = (t[0].clientY + t[1].clientY) / 2;
+    const scale = dist / pinchState.dist;
+    const newZoom = Math.max(0.2, Math.min(5, pinchState.startZoom * scale));
+
+    // Zoom around the pinch center
+    const pgRect = playground.getBoundingClientRect();
+    const sx = (pinchState.cx - pgRect.left - pinchState.startPanX) / pinchState.startZoom;
+    const sy = (pinchState.cy - pgRect.top - pinchState.startPanY) / pinchState.startZoom;
+    panX = cx - pgRect.left - sx * newZoom;
+    panY = cy - pgRect.top - sy * newZoom;
+    zoomLevel = newZoom;
+    applyZoom();
+  }
+}, { passive: false });
+
+playground.addEventListener('touchend', (e) => {
+  if (e.touches.length < 2) pinchState = null;
+});
 
 // ==================== TRASH ZONE ====================
 const trashZone = document.getElementById('trash-zone');
@@ -896,6 +1024,7 @@ function startDrag(e, id) {
   const rect = el.getBoundingClientRect();
   const pgRect = playground.getBoundingClientRect();
 
+  // offsetX/Y: distance from pointer to block's top-left, in screen px
   dragState = {
     id,
     offsetX: e.clientX - rect.left,
@@ -903,8 +1032,6 @@ function startDrag(e, id) {
     startX: block.x,
     startY: block.y,
     moved: false,
-    pgOffsetX: pgRect.left,
-    pgOffsetY: pgRect.top,
   };
 
   el.classList.add('dragging');
@@ -914,9 +1041,12 @@ function startDrag(e, id) {
   const onMove = (ev) => {
     if (!dragState) return;
     dragState.moved = true;
-    const nx = ev.clientX - dragState.pgOffsetX - dragState.offsetX;
-    const ny = ev.clientY - dragState.pgOffsetY - dragState.offsetY;
-    updateBlockPosition(dragState.id, nx, ny);
+    // Convert screen position to surface coords
+    const surfPos = screenToSurface(
+      ev.clientX - dragState.offsetX,
+      ev.clientY - dragState.offsetY
+    );
+    updateBlockPosition(dragState.id, surfPos.x, surfPos.y);
 
     // Highlight merge target
     clearMergeHighlights();
@@ -956,7 +1086,7 @@ function startDrag(e, id) {
 }
 
 function clearMergeHighlights() {
-  playground.querySelectorAll('.merge-target').forEach(el => el.classList.remove('merge-target'));
+  playSurface.querySelectorAll('.merge-target').forEach(el => el.classList.remove('merge-target'));
 }
 
 function canCombine(dragBlock, otherBlock) {
@@ -1261,14 +1391,12 @@ function makeTrayItem(n) {
   // Support both tap and drag-from-tray
   item.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    const pgRect = playground.getBoundingClientRect();
     const bounds = getShapeBounds(n);
-    const scale = scaleFor(n);
-    const scaledW = bounds.cols * BLOCK_SIZE * scale;
-    const scaledH = bounds.rows * BLOCK_SIZE * scale;
-
-    const spawnX = e.clientX - pgRect.left - scaledW / 2;
-    const spawnY = e.clientY - pgRect.top - scaledH / 2;
+    const blockScale = scaleFor(n);
+    // Spawn at pointer position, converting to surface coords
+    const surfPos = screenToSurface(e.clientX, e.clientY);
+    const spawnX = surfPos.x - (bounds.cols * BLOCK_SIZE * blockScale) / (2 * zoomLevel);
+    const spawnY = surfPos.y - (bounds.rows * BLOCK_SIZE * blockScale) / (2 * zoomLevel);
     const newBlock = spawnBlock(n, spawnX, Math.max(10, spawnY));
     if (!newBlock) return;
 
@@ -1283,8 +1411,6 @@ function makeTrayItem(n) {
       startX: newBlock.x,
       startY: newBlock.y,
       moved: false,
-      pgOffsetX: pgRect.left,
-      pgOffsetY: pgRect.top,
     };
     el.classList.add('dragging');
     showTrash();
@@ -1293,9 +1419,11 @@ function makeTrayItem(n) {
       if (!dragState) return;
       dragState.moved = true;
       moved = true;
-      const nx = ev.clientX - dragState.pgOffsetX - dragState.offsetX;
-      const ny = ev.clientY - dragState.pgOffsetY - dragState.offsetY;
-      updateBlockPosition(dragState.id, nx, ny);
+      const surfPos = screenToSurface(
+        ev.clientX - dragState.offsetX,
+        ev.clientY - dragState.offsetY
+      );
+      updateBlockPosition(dragState.id, surfPos.x, surfPos.y);
       clearMergeHighlights();
       const target = findMergeTarget(dragState.id);
       if (target) getBlockEl(target.id)?.classList.add('merge-target');
@@ -1311,9 +1439,13 @@ function makeTrayItem(n) {
       hideTrash();
 
       if (!moved) {
-        const cx = pgRect.width / 2 - scaledW / 2 + (Math.random() - 0.5) * 100;
-        const cy = pgRect.height / 2 - scaledH / 2 - 40 + (Math.random() - 0.5) * 60;
-        updateBlockPosition(newBlock.id, Math.max(10, cx), Math.max(50, cy));
+        // Tap: place in center of visible area
+        const pgRect = playground.getBoundingClientRect();
+        const center = screenToSurface(
+          pgRect.left + pgRect.width / 2 + (Math.random() - 0.5) * 100,
+          pgRect.top + pgRect.height / 2 - 40 + (Math.random() - 0.5) * 60
+        );
+        updateBlockPosition(newBlock.id, Math.max(10, center.x), Math.max(50, center.y));
       } else if (isOverTrash(ev)) {
         removeBlock(newBlock.id);
         playSplitSound();
@@ -1445,7 +1577,8 @@ function nextGuidedProblem() {
     choicesContainer.appendChild(btn);
   });
 
-  // Spawn the blocks
+  // Reset zoom for guided mode, spawn blocks in surface coords
+  zoomReset();
   const pgRect = playground.getBoundingClientRect();
   const centerY = pgRect.height / 2 + 20;
 
