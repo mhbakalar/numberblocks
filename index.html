@@ -72,13 +72,16 @@
   .numberblock {
     position: absolute;
     cursor: grab;
-    transition: filter 0.2s;
     z-index: 10;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    will-change: transform, left, top;
+    -webkit-transform: translateZ(0);
   }
   .numberblock:hover { filter: brightness(1.1); z-index: 20; }
   .numberblock.dragging {
     cursor: grabbing;
-    filter: brightness(1.15) drop-shadow(0 6px 12px rgba(0,0,0,0.3));
+    filter: drop-shadow(0 6px 12px rgba(0,0,0,0.3));
     z-index: 1000;
   }
   .numberblock.merge-target {
@@ -93,6 +96,7 @@
     position: absolute;
     border: 2px solid rgba(0,0,0,0.15);
     box-shadow: inset 0 -3px 0 rgba(0,0,0,0.15), inset 0 3px 0 rgba(255,255,255,0.25);
+    -webkit-backface-visibility: hidden;
   }
 
   .block-face {
@@ -587,8 +591,8 @@ function getUnitStyle(value, shape, idx) {
       const shade = Math.min(Math.floor(row / 3), 2);
       return { bg: NINE_SHADES[shade], border: null, dot: false };
     }
-    // 100 (tensDigit=10)
-    if (tensDigit === 10) return { bg: TEN_COLOR, border: TEN_BORDER, dot: false };
+    // 100: red blocks (One Hundred is red in the show)
+    if (tensDigit === 10) return { bg: '#DE151D', border: null, dot: false };
     // Decade colors
     const color = DIGIT_COLORS[tensDigit];
     const needsBorder = (tensDigit === 2) ? '#E89223' : null;
@@ -628,7 +632,7 @@ function getSwatchStyle(n) {
   if (ones === 0) {
     // Multiples of 10
     if (tens === 7) return { bg: null, gradient: 'linear-gradient(to top, #DE151D, #E89223, #E6C40C, #38B500, #23B0DB, #5A35C3, #BA79DD)', border: null };
-    if (tens === 10) return { bg: TEN_COLOR, gradient: null, border: TEN_BORDER };
+    if (tens === 10) return { bg: '#DE151D', gradient: null, border: null };
     if (tens === 2) return { bg: '#F0A050', gradient: null, border: '#E89223' };
     return { bg: DIGIT_COLORS[tens], gradient: null, border: null };
   }
@@ -670,14 +674,14 @@ function createBlockElement(block) {
   const el = document.createElement('div');
   el.className = 'numberblock pop-in';
   el.dataset.id = id;
-  el.style.left = x + 'px';
-  el.style.top = y + 'px';
   el.style.width = (bounds.cols * BLOCK_SIZE) + 'px';
   el.style.height = (bounds.rows * BLOCK_SIZE + 36) + 'px';
+  el.style.transformOrigin = 'top left';
 
   if (scale < 1) {
-    el.style.transform = `scale(${scale})`;
-    el.style.transformOrigin = 'top left';
+    el.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+  } else {
+    el.style.transform = `translate(${x}px, ${y}px)`;
   }
 
   // Face
@@ -784,8 +788,13 @@ function updateBlockPosition(id, x, y) {
   block.y = y;
   const el = getBlockEl(id);
   if (el) {
-    el.style.left = x + 'px';
-    el.style.top = y + 'px';
+    // Use translate for smooth GPU-composited movement on iOS/Safari
+    const scale = scaleFor(block.value);
+    if (scale < 1) {
+      el.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    } else {
+      el.style.transform = `translate(${x}px, ${y}px)`;
+    }
   }
 }
 
