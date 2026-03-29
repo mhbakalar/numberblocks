@@ -1146,47 +1146,44 @@ function startDrag(e, id) {
     el.appendChild(subtractBadge);
   }
 
+  let lastTarget = null; // Cache last valid target during drag
+
   const onMove = (ev) => {
     if (!dragState) return;
     dragState.moved = true;
-    // Convert screen position to surface coords
     const surfPos = screenToSurface(
       ev.clientX - dragState.offsetX,
       ev.clientY - dragState.offsetY
     );
     updateBlockPosition(dragState.id, surfPos.x, surfPos.y);
 
-    // Highlight merge target
     clearMergeHighlights();
-    const target = findMergeTarget(dragState.id);
-    if (target) {
-      getBlockEl(target.id)?.classList.add('merge-target');
+    lastTarget = findMergeTarget(dragState.id);
+    if (lastTarget) {
+      getBlockEl(lastTarget.id)?.classList.add('merge-target');
     }
     updateTrashHover(ev);
   };
 
   const onUp = (ev) => {
     if (!dragState) return;
-    el.classList.remove('dragging');
     clearMergeHighlights();
     hideTrash();
-
-    // Remove subtract badge
-    if (subtractBadge) {
-      subtractBadge.remove();
-      el.classList.remove('subtract-glow');
-    }
 
     if (dragState.moved) {
       if (isOverTrash(ev)) {
         removeBlock(dragState.id);
         playSplitSound();
-      } else {
-        const target = findMergeTarget(dragState.id);
-        if (target) {
-          mergeBlocks(dragState.id, target.id);
-        }
+      } else if (lastTarget) {
+        // Use cached target from last move event
+        mergeBlocks(dragState.id, lastTarget.id);
       }
+    }
+
+    el.classList.remove('dragging');
+    if (subtractBadge) {
+      subtractBadge.remove();
+      el.classList.remove('subtract-glow');
     }
 
     el.removeEventListener('pointermove', onMove);
@@ -1540,6 +1537,8 @@ function makeTrayItem(n) {
     el.classList.add('dragging');
     showTrash();
 
+    let lastTrayTarget = null;
+
     const onMove = (ev) => {
       if (!dragState) return;
       dragState.moved = true;
@@ -1550,8 +1549,8 @@ function makeTrayItem(n) {
       );
       updateBlockPosition(dragState.id, surfPos.x, surfPos.y);
       clearMergeHighlights();
-      const target = findMergeTarget(dragState.id);
-      if (target) getBlockEl(target.id)?.classList.add('merge-target');
+      lastTrayTarget = findMergeTarget(dragState.id);
+      if (lastTrayTarget) getBlockEl(lastTrayTarget.id)?.classList.add('merge-target');
       updateTrashHover(ev);
     };
 
@@ -1559,12 +1558,10 @@ function makeTrayItem(n) {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
       if (!dragState) return;
-      el.classList.remove('dragging');
       clearMergeHighlights();
       hideTrash();
 
       if (!moved) {
-        // Tap: place in center of visible area
         const pgRect = playground.getBoundingClientRect();
         const center = screenToSurface(
           pgRect.left + pgRect.width / 2 + (Math.random() - 0.5) * 100,
@@ -1574,10 +1571,11 @@ function makeTrayItem(n) {
       } else if (isOverTrash(ev)) {
         removeBlock(newBlock.id);
         playSplitSound();
-      } else {
-        const target = findMergeTarget(dragState.id);
-        if (target) mergeBlocks(dragState.id, target.id);
+      } else if (lastTrayTarget) {
+        mergeBlocks(dragState.id, lastTrayTarget.id);
       }
+
+      el.classList.remove('dragging');
 
       dragState = null;
     };
