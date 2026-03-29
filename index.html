@@ -306,6 +306,34 @@
     100% { opacity: 0; transform: translateY(400px) rotate(720deg) scale(0.5); }
   }
 
+  /* --- Trash zone --- */
+  #trash-zone {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(200,200,200,0.3);
+    border: 3px dashed rgba(150,150,150,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    z-index: 40;
+    transition: all 0.2s;
+    pointer-events: none;
+    opacity: 0;
+  }
+  #trash-zone.visible {
+    opacity: 1;
+  }
+  #trash-zone.hover {
+    background: rgba(255,80,80,0.25);
+    border-color: #ff4444;
+    transform: scale(1.2);
+  }
+
   /* --- Number tray --- */
   #tray {
     position: fixed;
@@ -433,6 +461,7 @@
 </div>
 
 <div id="playground">
+  <div id="trash-zone">🗑</div>
   <div id="guided-panel">
     <div id="guided-question"></div>
     <div id="guided-hint">Pick your answer, then put the blocks together to check!</div>
@@ -840,6 +869,21 @@ function updateBlockPosition(id, x, y) {
   }
 }
 
+// ==================== TRASH ZONE ====================
+const trashZone = document.getElementById('trash-zone');
+
+function isOverTrash(ev) {
+  const rect = trashZone.getBoundingClientRect();
+  return ev.clientX >= rect.left && ev.clientX <= rect.right &&
+         ev.clientY >= rect.top && ev.clientY <= rect.bottom;
+}
+
+function showTrash() { trashZone.classList.add('visible'); }
+function hideTrash() { trashZone.classList.remove('visible', 'hover'); }
+function updateTrashHover(ev) {
+  trashZone.classList.toggle('hover', isOverTrash(ev));
+}
+
 // ==================== DRAG & DROP ====================
 function startDrag(e, id) {
   if (e.button !== 0) return;
@@ -865,6 +909,7 @@ function startDrag(e, id) {
 
   el.classList.add('dragging');
   el.setPointerCapture(e.pointerId);
+  showTrash();
 
   const onMove = (ev) => {
     if (!dragState) return;
@@ -879,23 +924,29 @@ function startDrag(e, id) {
     if (target) {
       getBlockEl(target.id)?.classList.add('merge-target');
     }
+    updateTrashHover(ev);
   };
 
   const onUp = (ev) => {
     if (!dragState) return;
     el.classList.remove('dragging');
     clearMergeHighlights();
+    hideTrash();
 
     if (dragState.moved) {
-      const target = findMergeTarget(dragState.id);
-      if (target) {
-        mergeBlocks(dragState.id, target.id);
+      if (isOverTrash(ev)) {
+        removeBlock(dragState.id);
+        playSplitSound();
+      } else {
+        const target = findMergeTarget(dragState.id);
+        if (target) {
+          mergeBlocks(dragState.id, target.id);
+        }
       }
     }
 
     el.removeEventListener('pointermove', onMove);
     el.removeEventListener('pointerup', onUp);
-    // Keep dragState briefly so click handler can check .moved
     const ds = dragState;
     setTimeout(() => { if (dragState === ds) dragState = null; }, 50);
   };
@@ -1236,6 +1287,7 @@ function makeTrayItem(n) {
       pgOffsetY: pgRect.top,
     };
     el.classList.add('dragging');
+    showTrash();
 
     const onMove = (ev) => {
       if (!dragState) return;
@@ -1247,6 +1299,7 @@ function makeTrayItem(n) {
       clearMergeHighlights();
       const target = findMergeTarget(dragState.id);
       if (target) getBlockEl(target.id)?.classList.add('merge-target');
+      updateTrashHover(ev);
     };
 
     const onUp = (ev) => {
@@ -1255,11 +1308,15 @@ function makeTrayItem(n) {
       if (!dragState) return;
       el.classList.remove('dragging');
       clearMergeHighlights();
+      hideTrash();
 
       if (!moved) {
         const cx = pgRect.width / 2 - scaledW / 2 + (Math.random() - 0.5) * 100;
         const cy = pgRect.height / 2 - scaledH / 2 - 40 + (Math.random() - 0.5) * 60;
         updateBlockPosition(newBlock.id, Math.max(10, cx), Math.max(50, cy));
+      } else if (isOverTrash(ev)) {
+        removeBlock(newBlock.id);
+        playSplitSound();
       } else {
         const target = findMergeTarget(dragState.id);
         if (target) mergeBlocks(dragState.id, target.id);
