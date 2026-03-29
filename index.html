@@ -449,7 +449,8 @@
 <script>
 // ==================== CONFIG ====================
 const BLOCK_SIZE = 48;
-const MAX_NUMBER = 100;
+const MAX_NUMBER = 999; // no practical cap on merging
+const TRAY_MAX = 100;   // tray only goes to 100
 
 // Base colors for digits 1-9, plus 10
 const DIGIT_COLORS = {
@@ -503,16 +504,16 @@ const TEEN_TEN_INDICES = {
   18: new Set([0,1, 3,4, 6,7, 9,10, 12,13]),
 };
 
-// Generate shape for any number 1-100
+// Generate shape for any number
 function getShape(n) {
   if (n <= 20) return SHAPES_1_20[n];
 
-  const tens = Math.floor(n / 10);
+  const totalTens = Math.floor(n / 10);
   const ones = n % 10;
   const shape = [];
 
   // Full rows of 10 for the tens portion
-  for (let row = 0; row < tens; row++) {
+  for (let row = 0; row < totalTens; row++) {
     for (let col = 0; col < 10; col++) {
       shape.push([col, row]);
     }
@@ -522,7 +523,7 @@ function getShape(n) {
   if (ones > 0) {
     const onesShape = SHAPES_1_20[ones];
     for (const [c, r] of onesShape) {
-      shape.push([c, tens + r]);
+      shape.push([c, totalTens + r]);
     }
   }
 
@@ -533,7 +534,10 @@ function getShape(n) {
 function scaleFor(n) {
   if (n <= 20) return 1;
   if (n <= 40) return 0.55;
-  return 0.4;
+  if (n <= 100) return 0.4;
+  if (n <= 200) return 0.25;
+  if (n <= 500) return 0.15;
+  return 0.1;
 }
 
 // Get the color + border for a single unit block
@@ -575,29 +579,67 @@ function getUnitStyle(value, shape, idx) {
     return { bg: DIGIT_COLORS[ones], border: null, dot: false };
   }
 
-  // --- Numbers 21-100: generated layouts ---
-  const tens = Math.floor(value / 10);
+  // --- Numbers 21+: generated layouts ---
+  // Break into: hundreds, remaining tens, and ones
+  // Each row of 10 blocks is colored by which "digit group" it belongs to
+  const totalTens = Math.floor(value / 10);
   const ones = value % 10;
-  const numTenBlocks = tens * 10;
+  const numTenBlocks = totalTens * 10;
   const isTenBlock = idx < numTenBlocks;
 
   if (isTenBlock) {
-    const tensDigit = tens;
-    // Rainbow 70s: each row a different color
-    if (tensDigit === 7) return { bg: RAINBOW_7[row], border: null, dot: false };
-    // Grey 90s: 3 groups of 3 rows
-    if (tensDigit === 9) {
-      const shade = Math.min(Math.floor(row / 3), 2);
-      return { bg: NINE_SHADES[shade], border: null, dot: false };
+    // Determine which hundred this row belongs to
+    const hundredsDigit = Math.floor(row / 10); // 0-based: rows 0-9 = first hundred, 10-19 = second, etc.
+    const rowInHundred = row % 10; // 0-9 within this hundred
+
+    if (hundredsDigit === 0 && value <= 100) {
+      // First/only hundred (21-100): use the tens digit coloring
+      const tensDigit = totalTens;
+      if (tensDigit === 7) return { bg: RAINBOW_7[row], border: null, dot: false };
+      if (tensDigit === 9) {
+        const shade = Math.min(Math.floor(row / 3), 2);
+        return { bg: NINE_SHADES[shade], border: null, dot: false };
+      }
+      if (tensDigit === 10) return { bg: '#DE151D', border: null, dot: false };
+      const color = DIGIT_COLORS[tensDigit];
+      const needsBorder = (tensDigit === 2) ? '#E89223' : null;
+      return { bg: color, border: needsBorder, dot: (tensDigit === 6) };
     }
-    // 100: red blocks (One Hundred is red in the show)
-    if (tensDigit === 10) return { bg: '#DE151D', border: null, dot: false };
-    // Decade colors
-    const color = DIGIT_COLORS[tensDigit];
-    const needsBorder = (tensDigit === 2) ? '#E89223' : null;
-    return { bg: color, border: needsBorder, dot: (tensDigit === 6) };
+
+    // Numbers > 100: color by composition
+    // Complete hundreds are colored by the hundreds digit
+    const totalHundreds = Math.floor(value / 100);
+    const remainder = value % 100;
+    const completeHundredRows = totalHundreds * 10;
+    const remainderTens = Math.floor(remainder / 10);
+
+    if (row < completeHundredRows) {
+      // This row is part of a complete hundred
+      const whichHundred = Math.floor(row / 10) + 1; // 1-based
+      const digit = whichHundred <= 9 ? whichHundred : 1; // wrap for huge numbers
+      if (digit === 7) return { bg: RAINBOW_7[rowInHundred % 7], border: null, dot: false };
+      if (digit === 9) {
+        const shade = Math.min(Math.floor(rowInHundred / 3), 2);
+        return { bg: NINE_SHADES[shade], border: null, dot: false };
+      }
+      return { bg: DIGIT_COLORS[digit] || '#DE151D', border: null, dot: (digit === 6) };
+    } else {
+      // Remaining tens rows (after the complete hundreds)
+      const remainderRow = row - completeHundredRows;
+      const tensDigit = remainderTens;
+      if (tensDigit === 0) {
+        // No remaining tens — shouldn't happen since we're in isTenBlock
+        return { bg: '#999', border: null, dot: false };
+      }
+      if (tensDigit === 7) return { bg: RAINBOW_7[remainderRow % 7], border: null, dot: false };
+      if (tensDigit === 9) {
+        const shade = Math.min(Math.floor(remainderRow / 3), 2);
+        return { bg: NINE_SHADES[shade], border: null, dot: false };
+      }
+      return { bg: DIGIT_COLORS[tensDigit], border: null, dot: (tensDigit === 6) };
+    }
   } else {
-    // Ones blocks (on top)
+    // Ones blocks (on top of all the tens rows)
     const onesIdx = idx - numTenBlocks;
     if (ones === 7) return { bg: RAINBOW_7[onesIdx], border: null, dot: false };
     if (ones === 9) {
@@ -626,16 +668,22 @@ function getSwatchStyle(n) {
     if (n === 10) return { bg: TEN_COLOR, gradient: null, border: TEN_BORDER };
     return { bg: DIGIT_COLORS[n], gradient: null, border: null };
   }
+  if (n === 100) return { bg: '#DE151D', gradient: null, border: null };
+
+  // For numbers > 100, use the hundreds digit color
+  if (n > 100) {
+    const h = Math.floor(n / 100);
+    const digit = h <= 9 ? h : 1;
+    return { bg: DIGIT_COLORS[digit] || '#DE151D', gradient: null, border: null };
+  }
+
   const tens = Math.floor(n / 10);
   const ones = n % 10;
   if (ones === 0) {
-    // Multiples of 10
     if (tens === 7) return { bg: null, gradient: 'linear-gradient(to top, #DE151D, #E89223, #E6C40C, #38B500, #23B0DB, #5A35C3, #BA79DD)', border: null };
-    if (tens === 10) return { bg: '#DE151D', gradient: null, border: null };
     if (tens === 2) return { bg: '#F0A050', gradient: null, border: '#E89223' };
     return { bg: DIGIT_COLORS[tens], gradient: null, border: null };
   }
-  // Non-multiples: split swatch (tens color bottom, ones color top)
   const tensColor = (tens === 7) ? '#BA79DD' : (tens === 2 ? '#F0A050' : (tens === 10 ? TEN_COLOR : DIGIT_COLORS[tens]));
   const onesColor = (ones === 7) ? '#BA79DD' : DIGIT_COLORS[ones];
   return { bg: null, gradient: `linear-gradient(to top, ${onesColor} 40%, ${tensColor} 40%)`, border: null };
@@ -994,21 +1042,25 @@ function styleMiniBlock(el, n) {
 
 function getSplitOptions(n) {
   if (n <= 20) {
-    // Show all options for small numbers
     const opts = [];
     for (let i = 1; i <= Math.floor(n / 2); i++) opts.push([i, n - i]);
     return opts;
   }
-  // For larger numbers, show: tens-based splits + a few interesting ones
   const opts = new Set();
-  const tens = Math.floor(n / 10);
   const ones = n % 10;
+  const tens = Math.floor(n / 10);
 
   // Split off the ones digit (e.g., 37 → 30 + 7)
   if (ones > 0) opts.add(`${ones},${n - ones}`);
-  // Split into tens (e.g., 60 → 30 + 30, 50 + 10)
-  for (let t = 1; t < tens; t++) {
+  // Split into tens (cap at reasonable count)
+  const tenStep = tens > 20 ? 10 : 1;
+  for (let t = tenStep; t < tens; t += tenStep) {
     opts.add(`${t * 10},${n - t * 10}`);
+  }
+  // Split off hundreds (e.g., 350 → 100 + 250)
+  const hundreds = Math.floor(n / 100);
+  for (let h = 1; h < hundreds; h++) {
+    opts.add(`${h * 100},${n - h * 100}`);
   }
   // Split off small numbers 1-10
   for (let i = 1; i <= Math.min(10, Math.floor(n / 2)); i++) {
