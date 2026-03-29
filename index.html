@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Numberblocks!</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Fredoka One', 'Comic Sans MS', 'Trebuchet MS', sans-serif;
+    background: linear-gradient(135deg, #e0f7fa 0%, #fff9c4 50%, #f8bbd0 100%);
+    min-height: 100vh;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+
+  #header {
+    text-align: center;
+    padding: 10px;
+    background: linear-gradient(90deg, #ff6b6b, #ffa500, #ffd93d, #6bcb77, #4d96ff, #9b59b6);
+    color: white;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    font-size: 28px;
+    letter-spacing: 2px;
+    position: relative;
+    z-index: 100;
+  }
+
+  #mode-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    padding: 8px;
+    background: rgba(255,255,255,0.85);
+    border-bottom: 3px solid #ddd;
+    position: relative;
+    z-index: 100;
+  }
+
+  .mode-btn {
+    padding: 8px 28px;
+    font-size: 18px;
+    font-family: inherit;
+    border: 3px solid #ccc;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+    color: #555;
+  }
+
+  .mode-btn:hover { transform: scale(1.05); }
+  .mode-btn.active {
+    background: #4d96ff;
+    color: white;
+    border-color: #2d76df;
+    transform: scale(1.05);
+  }
+
+  #playground {
+    position: relative;
+    width: 100vw;
+    height: calc(100vh - 95px - 80px);
+    overflow: hidden;
+  }
+
+  /* --- Numberblock rendering --- */
+  .numberblock {
+    position: absolute;
+    cursor: grab;
+    transition: filter 0.2s;
+    z-index: 10;
+  }
+  .numberblock:hover { filter: brightness(1.1); z-index: 20; }
+  .numberblock.dragging {
+    cursor: grabbing;
+    filter: brightness(1.15) drop-shadow(0 6px 12px rgba(0,0,0,0.3));
+    z-index: 1000;
+  }
+  .numberblock.merge-target {
+    filter: brightness(1.3) drop-shadow(0 0 20px gold);
+    z-index: 999;
+  }
+
+  .block-unit {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    position: absolute;
+    border: 2px solid rgba(0,0,0,0.15);
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,0.15), inset 0 3px 0 rgba(255,255,255,0.25);
+  }
+
+  .block-face {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 44px;
+    height: 36px;
+    pointer-events: none;
+  }
+
+  .block-eyes {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+  }
+
+  .eye {
+    width: 10px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+    position: relative;
+    border: 1px solid #333;
+  }
+  .eye::after {
+    content: '';
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    background: #333;
+    border-radius: 50%;
+    top: 4px;
+    left: 3px;
+  }
+
+  .block-mouth {
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 7px;
+    border-bottom: 2px solid #333;
+    border-left: 2px solid #333;
+    border-right: 2px solid #333;
+    border-radius: 0 0 8px 8px;
+  }
+
+  .block-number {
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 20px;
+    font-weight: bold;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    pointer-events: none;
+  }
+
+  /* --- Split menu --- */
+  .split-menu {
+    position: absolute;
+    background: white;
+    border-radius: 16px;
+    padding: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: 3px solid #4d96ff;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .split-option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    background: #f0f7ff;
+    border: 2px solid #ddd;
+    font-family: inherit;
+    font-size: 18px;
+    transition: all 0.15s;
+  }
+  .split-option:hover {
+    background: #d0e8ff;
+    border-color: #4d96ff;
+    transform: scale(1.05);
+  }
+
+  .mini-block {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    border: 2px solid rgba(0,0,0,0.15);
+    vertical-align: middle;
+  }
+
+  /* --- Guided mode --- */
+  #guided-panel {
+    display: none;
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.95);
+    border-radius: 20px;
+    padding: 15px 25px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    z-index: 50;
+    text-align: center;
+    border: 3px solid #ffd93d;
+    max-width: 90vw;
+  }
+
+  #guided-question {
+    font-size: 32px;
+    color: #333;
+    margin-bottom: 8px;
+  }
+
+  #guided-hint {
+    font-size: 16px;
+    color: #888;
+    margin-bottom: 10px;
+  }
+
+  #answer-choices {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .answer-choice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 14px;
+    border-radius: 14px;
+    cursor: pointer;
+    background: #f8f8f8;
+    border: 3px solid #ddd;
+    font-family: inherit;
+    font-size: 22px;
+    font-weight: bold;
+    color: #444;
+    transition: all 0.15s;
+    min-width: 60px;
+  }
+  .answer-choice:hover {
+    transform: scale(1.08);
+    border-color: #aaa;
+  }
+  .answer-choice.selected {
+    border-color: #ffd93d;
+    background: #fff9e0;
+    box-shadow: 0 0 12px rgba(255, 217, 61, 0.5);
+    transform: scale(1.1);
+  }
+  .answer-choice.correct-reveal {
+    border-color: #38B500;
+    background: #e8ffe0;
+    box-shadow: 0 0 16px rgba(56, 181, 0, 0.5);
+  }
+  .answer-choice.wrong-reveal {
+    border-color: #ff6b6b;
+    background: #ffe0e0;
+    opacity: 0.7;
+  }
+  .answer-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 2px solid rgba(0,0,0,0.15);
+  }
+
+  .celebration {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 5000;
+  }
+
+  .confetti {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    animation: confetti-fall 1.5s ease-out forwards;
+  }
+
+  @keyframes confetti-fall {
+    0% { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+    100% { opacity: 0; transform: translateY(400px) rotate(720deg) scale(0.5); }
+  }
+
+  /* --- Number tray --- */
+  #tray {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: rgba(255,255,255,0.95);
+    border-top: 3px solid #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 70px 0 10px;
+    z-index: 200;
+  }
+
+  .tray-block {
+    cursor: pointer;
+    transition: transform 0.15s;
+    position: relative;
+  }
+  .tray-block:hover { transform: scale(1.15); }
+
+  .tray-label {
+    text-align: center;
+    font-size: 13px;
+    font-weight: bold;
+    color: #555;
+    margin-top: 2px;
+  }
+
+  #clear-btn {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 8px 18px;
+    font-size: 14px;
+    font-family: inherit;
+    border: 2px solid #ff6b6b;
+    border-radius: 15px;
+    background: white;
+    color: #ff6b6b;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  #clear-btn:hover { background: #ff6b6b; color: white; }
+
+  /* Subtraction badge on blocks */
+  .subtract-badge {
+    position: absolute;
+    top: -4px;
+    right: -8px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #ff4444;
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    line-height: 24px;
+    text-align: center;
+    border: 2px solid white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    z-index: 30;
+    pointer-events: none;
+  }
+
+  .numberblock.subtract-glow {
+    filter: drop-shadow(0 0 8px rgba(255, 68, 68, 0.5));
+  }
+  .numberblock.subtract-glow:hover {
+    filter: drop-shadow(0 0 12px rgba(255, 68, 68, 0.7)) brightness(1.1);
+  }
+
+  /* Poof animation for subtracted block */
+  @keyframes poof {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.5; }
+    100% { transform: scale(0); opacity: 0; }
+  }
+  .poof { animation: poof 0.35s ease-out forwards; }
+
+  /* Bounce animation for new blocks */
+  @keyframes pop-in {
+    0% { transform: scale(0); }
+    60% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  .pop-in { animation: pop-in 0.35s ease-out; }
+
+  /* Merge flash */
+  @keyframes merge-flash {
+    0% { filter: brightness(2) drop-shadow(0 0 30px gold); }
+    100% { filter: brightness(1); }
+  }
+  .merge-flash { animation: merge-flash 0.5s ease-out; }
+</style>
+</head>
+<body>
+
+<div id="header">Numberblocks!</div>
+
+<div id="mode-buttons">
+  <button class="mode-btn active" onclick="setMode('free')">Free Play</button>
+  <button class="mode-btn" onclick="setMode('guided')">Addition</button>
+  <button class="mode-btn" onclick="setMode('subtract')">Subtraction</button>
+</div>
+
+<div id="playground">
+  <div id="guided-panel">
+    <div id="guided-question"></div>
+    <div id="guided-hint">Pick your answer, then put the blocks together to check!</div>
+    <div id="answer-choices"></div>
+  </div>
+</div>
+
+<div id="tray">
+  <button id="clear-btn" onclick="clearPlayground()">Clear All</button>
+</div>
+
+<script>
+// ==================== CONFIG ====================
+const BLOCK_SIZE = 48;
+const MAX_NUMBER = 20;
+
+const COLORS = {
+  1:  '#DE151D',  // red
+  2:  '#E89223',  // orange
+  3:  '#E6C40C',  // yellow
+  4:  '#38B500',  // green
+  5:  '#23B0DB',  // cyan
+  6:  '#5A35C3',  // indigo/purple
+  7:  '#BA79DD',  // violet (fallback, but Seven is rainbow)
+  8:  '#FD40A4',  // pink
+  9:  '#A5A9AC',  // grey (middle shade)
+  10: '#EEEEEE',  // white
+  11: '#DE151D',  // ones digit color: red (1)
+  12: '#E89223',  // ones digit color: orange (2)
+  13: '#E6C40C',  // ones digit color: yellow (3)
+  14: '#38B500',  // ones digit color: green (4)
+  15: '#23B0DB',  // ones digit color: cyan (5)
+  16: '#5A35C3',  // ones digit color: indigo (6)
+  17: '#BA79DD',  // ones digit color: violet (7)
+  18: '#FD40A4',  // ones digit color: pink (8)
+  19: '#A5A9AC',  // ones digit color: grey (9)
+  20: '#F0A050',  // light orange
+};
+
+// Six has periwinkle spots on each block
+const SIX_SPOT_COLOR = '#8198FF';
+
+// Nine has 3 shades of grey — bottom row dark, middle row medium, top row light
+const NINE_COLORS = {
+  0: '#8A8B8F',  // bottom row - dark grey
+  1: '#A5A9AC',  // middle row - medium grey
+  2: '#C4C8CB',  // top row - light grey
+};
+
+// Ten is white with a red border
+const TEN_BORDER_COLOR = '#DE151D';
+
+// Twenty is light orange with orange border
+const TWENTY_BORDER_COLOR = '#E89223';
+
+// 7 is a rainbow — each unit block gets a different color (bottom to top: 1-7)
+const RAINBOW_7 = [
+  '#DE151D', '#E89223', '#E6C40C', '#38B500', '#23B0DB', '#5A35C3', '#BA79DD'
+];
+
+// Block arrangements: array of [col, row] offsets (0-indexed, row 0 = bottom)
+// For 11-19, blocks are tagged 'ten' or 'ones' via BLOCK_TAGS
+const SHAPES = {
+  1:  [[0,0]],
+  2:  [[0,0],[0,1]],
+  3:  [[0,0],[0,1],[0,2]],
+  4:  [[0,0],[1,0],[0,1],[1,1]],
+  5:  [[0,0],[0,1],[0,2],[0,3],[0,4]],
+  6:  [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2]],
+  7:  [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6]], // single column rainbow
+  8:  [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3]],
+  9:  [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2]],
+  10: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4]],
+  // 11: ten (2x5) + 1 red on top-right
+  11: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],
+       [2,0]],
+  // 12: 3x4 rectangle (super rectangle)
+  12: [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2],[0,3],[1,3],[2,3]],
+  // 13: ten (2x5) + 3 yellow stacked on right
+  13: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],
+       [2,0],[2,1],[2,2]],
+  // 14: 2x7 rectangle
+  14: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],[0,5],[1,5],[0,6],[1,6]],
+  // 15: staircase (triangular) — 5 cols: heights 1,2,3,4,5
+  15: [[0,0],
+       [1,0],[1,1],
+       [2,0],[2,1],[2,2],
+       [3,0],[3,1],[3,2],[3,3],
+       [4,0],[4,1],[4,2],[4,3],[4,4]],
+  // 16: 4x4 square
+  16: [[0,0],[1,0],[2,0],[3,0],[0,1],[1,1],[2,1],[3,1],[0,2],[1,2],[2,2],[3,2],[0,3],[1,3],[2,3],[3,3]],
+  // 17: ten (2x5) + 7 rainbow column on right
+  17: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],
+       [2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6]],
+  // 18: 3x6 rectangle
+  18: [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2],[0,3],[1,3],[2,3],[0,4],[1,4],[2,4],[0,5],[1,5],[2,5]],
+  // 19: ten (2x5) + 9 (3x3) on right
+  19: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],
+       [2,0],[3,0],[4,0],[2,1],[3,1],[4,1],[2,2],[3,2],[4,2]],
+  // 20: 2x10 rectangle (two tens side by side)
+  20: [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[1,4],
+       [0,5],[1,5],[0,6],[1,6],[0,7],[1,7],[0,8],[1,8],[0,9],[1,9]],
+};
+
+// For composite numbers 11-19: which blocks are "ten" (white/red) vs "ones" (colored)
+// Index into the SHAPES array. First 10 entries are the ten-block, rest are ones.
+// For 12, 14, 15, 16, 18: special rectangle/staircase arrangements use mixed coloring
+function getBlockType(value, idx) {
+  if (value >= 11 && value <= 19) {
+    return idx < 10 ? 'ten' : 'ones';
+  }
+  return 'self';
+}
+
+// Get the ones-digit color for a teen number
+function getOnesColor(value, onesIdx) {
+  const ones = value - 10;
+  // Special: 17's ones blocks are rainbow (like 7)
+  if (value === 17) return RAINBOW_7[onesIdx];
+  // Special: 19's ones blocks use 3 shades of grey (like 9)
+  if (value === 19) {
+    const [c, r] = SHAPES[19][10 + onesIdx];
+    const localRow = r; // row within the 3x3
+    return NINE_COLORS[localRow] || COLORS[9];
+  }
+  return COLORS[ones] || COLORS[value];
+}
+
+// For special rectangle arrangements (12, 14, 15, 16, 18), define ten vs ones blocks explicitly
+const COMPOSITE_TEN_INDICES = {
+  // 12: 3x4 — ten blocks form a U/border, 2 orange in middle
+  // Arranged as 3x4: ten = outer, ones = [4,7] (middle of rows 1,2)
+  12: new Set([0,1,2, 3,5, 6,8, 9,10,11]), // ten blocks (indices), ones = 4,7
+  // 14: 2x7 — bottom 5 rows (10 blocks) = ten, top 2 rows (4 blocks) = ones
+  14: new Set([0,1,2,3,4,5,6,7,8,9]),
+  // 15: staircase — ten blocks are the bottom/left, ones are the top/right
+  15: new Set([0, 1,2, 3,4,5, 6,7,8,9]),
+  // 16: 4x4 — 10 blocks = ten, 6 blocks = ones (indigo)
+  // Six indigo shaped like a hat on top, ten below
+  16: new Set([0,1,2,3, 4,5,6,7, 8,9]),
+  // 18: 3x6 — ten blocks fill one area, 8 pink fill the rest
+  18: new Set([0,1, 3,4, 6,7, 9,10, 12,13]),
+};
+
+// ==================== STATE ====================
+let blocks = [];
+let nextId = 1;
+let mode = 'free';
+let guidedProblem = null;
+let dragState = null;
+let splitMenu = null;
+
+const playground = document.getElementById('playground');
+const tray = document.getElementById('tray');
+const guidedPanel = document.getElementById('guided-panel');
+
+// ==================== NUMBERBLOCK RENDERING ====================
+function getShapeBounds(n) {
+  const shape = SHAPES[n];
+  let maxCol = 0, maxRow = 0;
+  for (const [c, r] of shape) {
+    if (c > maxCol) maxCol = c;
+    if (r > maxRow) maxRow = r;
+  }
+  return { cols: maxCol + 1, rows: maxRow + 1 };
+}
+
+function createBlockElement(block) {
+  const { id, value, x, y } = block;
+  const shape = SHAPES[value];
+  const bounds = getShapeBounds(value);
+  const color = COLORS[value] || '#999';
+
+  const el = document.createElement('div');
+  el.className = 'numberblock pop-in';
+  el.dataset.id = id;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.style.width = (bounds.cols * BLOCK_SIZE) + 'px';
+  el.style.height = (bounds.rows * BLOCK_SIZE + 36) + 'px'; // extra for face
+
+  // Face
+  const face = document.createElement('div');
+  face.className = 'block-face';
+  face.style.position = 'absolute';
+  face.style.top = '0px';
+  face.style.left = '50%';
+  face.style.transform = 'translateX(-50%)';
+  face.style.width = '44px';
+  face.style.height = '36px';
+
+  const eyes = document.createElement('div');
+  eyes.className = 'block-eyes';
+  eyes.innerHTML = '<div class="eye"></div><div class="eye"></div>';
+  eyes.style.position = 'absolute';
+  eyes.style.top = '6px';
+  eyes.style.left = '50%';
+  eyes.style.transform = 'translateX(-50%)';
+
+  const mouth = document.createElement('div');
+  mouth.className = 'block-mouth';
+  mouth.style.position = 'absolute';
+  mouth.style.bottom = '2px';
+  mouth.style.left = '50%';
+  mouth.style.transform = 'translateX(-50%)';
+
+  face.appendChild(eyes);
+  face.appendChild(mouth);
+  el.appendChild(face);
+
+  // Unit blocks (offset down by face height)
+  const faceHeight = 36;
+  let onesIdx = 0;
+  shape.forEach(([c, r], idx) => {
+    const unit = document.createElement('div');
+    unit.className = 'block-unit';
+
+    let unitColor = color;
+    let isTenBlock = false;
+
+    if (value <= 10) {
+      // Original 1-10 logic
+      if (value === 7) {
+        unitColor = RAINBOW_7[idx];
+      } else if (value === 9) {
+        unitColor = NINE_COLORS[r] || color;
+      }
+      if (value === 10) isTenBlock = true;
+    } else if (value === 20) {
+      // Twenty: all light orange with orange border
+      unitColor = COLORS[20];
+    } else if (value >= 11 && value <= 19) {
+      // Teen numbers: composite ten + ones
+      if (COMPOSITE_TEN_INDICES[value]) {
+        // Special rectangle/staircase arrangements
+        if (COMPOSITE_TEN_INDICES[value].has(idx)) {
+          isTenBlock = true;
+          unitColor = '#EEEEEE';
+        } else {
+          unitColor = getOnesColor(value, onesIdx);
+          onesIdx++;
+        }
+      } else {
+        // Standard ten-and-ones layout (11, 13, 17, 19)
+        const btype = getBlockType(value, idx);
+        if (btype === 'ten') {
+          isTenBlock = true;
+          unitColor = '#EEEEEE';
+        } else {
+          unitColor = getOnesColor(value, onesIdx);
+          onesIdx++;
+        }
+      }
+    }
+
+    unit.style.backgroundColor = unitColor;
+
+    // White/red border for ten-blocks
+    if (isTenBlock) {
+      unit.style.borderColor = TEN_BORDER_COLOR;
+      unit.style.borderWidth = '3px';
+    }
+
+    // Twenty: orange border
+    if (value === 20) {
+      unit.style.borderColor = TWENTY_BORDER_COLOR;
+      unit.style.borderWidth = '3px';
+    }
+
+    unit.style.left = (c * BLOCK_SIZE) + 'px';
+    unit.style.top = (faceHeight + (bounds.rows - 1 - r) * BLOCK_SIZE) + 'px';
+
+    // Six: periwinkle dot on each block
+    if (value === 6) {
+      const dot = document.createElement('div');
+      dot.style.cssText = `
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        width: 12px; height: 12px; border-radius: 50%;
+        background: ${SIX_SPOT_COLOR};
+      `;
+      unit.style.position = 'absolute';
+      unit.appendChild(dot);
+    }
+
+    el.appendChild(unit);
+  });
+
+  // Number label
+  const label = document.createElement('div');
+  label.className = 'block-number';
+  label.textContent = value;
+  label.style.bottom = '4px';
+  el.appendChild(label);
+
+  // Events
+  el.addEventListener('pointerdown', (e) => startDrag(e, id));
+  el.addEventListener('click', (e) => {
+    if (!dragState || !dragState.moved) {
+      onBlockClick(e, id);
+    }
+  });
+
+  return el;
+}
+
+// ==================== BLOCK MANAGEMENT ====================
+function spawnBlock(value, x, y) {
+  if (value < 1 || value > MAX_NUMBER) return null;
+  const block = { id: nextId++, value, x, y };
+  blocks.push(block);
+  const el = createBlockElement(block);
+  playground.appendChild(el);
+  return block;
+}
+
+function removeBlock(id) {
+  blocks = blocks.filter(b => b.id !== id);
+  const el = playground.querySelector(`.numberblock[data-id="${id}"]`);
+  if (el) el.remove();
+}
+
+function getBlockEl(id) {
+  return playground.querySelector(`.numberblock[data-id="${id}"]`);
+}
+
+function getBlock(id) {
+  return blocks.find(b => b.id === id);
+}
+
+function updateBlockPosition(id, x, y) {
+  const block = getBlock(id);
+  if (!block) return;
+  block.x = x;
+  block.y = y;
+  const el = getBlockEl(id);
+  if (el) {
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+  }
+}
+
+// ==================== DRAG & DROP ====================
+function startDrag(e, id) {
+  if (e.button !== 0) return;
+  closeSplitMenu();
+
+  const block = getBlock(id);
+  if (!block) return;
+
+  const el = getBlockEl(id);
+  const rect = el.getBoundingClientRect();
+  const pgRect = playground.getBoundingClientRect();
+
+  dragState = {
+    id,
+    offsetX: e.clientX - rect.left,
+    offsetY: e.clientY - rect.top,
+    startX: block.x,
+    startY: block.y,
+    moved: false,
+    pgOffsetX: pgRect.left,
+    pgOffsetY: pgRect.top,
+  };
+
+  el.classList.add('dragging');
+  el.setPointerCapture(e.pointerId);
+
+  const onMove = (ev) => {
+    if (!dragState) return;
+    dragState.moved = true;
+    const nx = ev.clientX - dragState.pgOffsetX - dragState.offsetX;
+    const ny = ev.clientY - dragState.pgOffsetY - dragState.offsetY;
+    updateBlockPosition(dragState.id, nx, ny);
+
+    // Highlight merge target
+    clearMergeHighlights();
+    const target = findMergeTarget(dragState.id);
+    if (target) {
+      getBlockEl(target.id)?.classList.add('merge-target');
+    }
+  };
+
+  const onUp = (ev) => {
+    if (!dragState) return;
+    el.classList.remove('dragging');
+    clearMergeHighlights();
+
+    if (dragState.moved) {
+      const target = findMergeTarget(dragState.id);
+      if (target) {
+        mergeBlocks(dragState.id, target.id);
+      }
+    }
+
+    el.removeEventListener('pointermove', onMove);
+    el.removeEventListener('pointerup', onUp);
+    // Keep dragState briefly so click handler can check .moved
+    const ds = dragState;
+    setTimeout(() => { if (dragState === ds) dragState = null; }, 50);
+  };
+
+  el.addEventListener('pointermove', onMove);
+  el.addEventListener('pointerup', onUp);
+}
+
+function clearMergeHighlights() {
+  playground.querySelectorAll('.merge-target').forEach(el => el.classList.remove('merge-target'));
+}
+
+function canCombine(dragBlock, otherBlock) {
+  // Subtraction mode: subtractor can be dragged onto a larger block
+  if (mode === 'subtract' && dragBlock.isSubtractor && otherBlock.value > dragBlock.value) {
+    return true;
+  }
+  // Free play / addition: sum must be in range
+  if (mode !== 'subtract' && dragBlock.value + otherBlock.value <= MAX_NUMBER) {
+    return true;
+  }
+  return false;
+}
+
+function findMergeTarget(dragId) {
+  const dragBlock = getBlock(dragId);
+  if (!dragBlock) return null;
+  const dragEl = getBlockEl(dragId);
+  if (!dragEl) return null;
+  const dragRect = dragEl.getBoundingClientRect();
+
+  let closest = null;
+  let closestDist = Infinity;
+
+  for (const other of blocks) {
+    if (other.id === dragId) continue;
+    if (!canCombine(dragBlock, other)) continue;
+
+    const otherEl = getBlockEl(other.id);
+    if (!otherEl) continue;
+    const otherRect = otherEl.getBoundingClientRect();
+
+    const overlap = getOverlap(dragRect, otherRect);
+    const minArea = Math.min(
+      dragRect.width * dragRect.height,
+      otherRect.width * otherRect.height
+    );
+
+    if (overlap > minArea * 0.25) {
+      const dist = Math.hypot(
+        dragRect.left + dragRect.width/2 - otherRect.left - otherRect.width/2,
+        dragRect.top + dragRect.height/2 - otherRect.top - otherRect.height/2
+      );
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = other;
+      }
+    }
+  }
+
+  return closest;
+}
+
+function getOverlap(r1, r2) {
+  const xOverlap = Math.max(0, Math.min(r1.right, r2.right) - Math.max(r1.left, r2.left));
+  const yOverlap = Math.max(0, Math.min(r1.bottom, r2.bottom) - Math.max(r1.top, r2.top));
+  return xOverlap * yOverlap;
+}
+
+// ==================== MERGE / SUBTRACT ====================
+function mergeBlocks(id1, id2) {
+  const b1 = getBlock(id1);
+  const b2 = getBlock(id2);
+  if (!b1 || !b2) return;
+
+  // Determine if this is a subtraction
+  const isSubtract = mode === 'subtract' && (b1.isSubtractor || b2.isSubtractor);
+
+  let newVal, bigBlock, smallBlock;
+  if (isSubtract) {
+    // The subtractor is dragged onto the bigger block
+    if (b1.isSubtractor) { smallBlock = b1; bigBlock = b2; }
+    else { smallBlock = b2; bigBlock = b1; }
+    newVal = bigBlock.value - smallBlock.value;
+    if (newVal < 1) return;
+  } else {
+    newVal = b1.value + b2.value;
+    if (newVal > MAX_NUMBER) return;
+  }
+
+  if (isSubtract) {
+    // Poof the subtractor, then transform the big block
+    const smallEl = getBlockEl(smallBlock.id);
+    if (smallEl) {
+      smallEl.classList.add('poof');
+      smallEl.addEventListener('animationend', () => removeBlock(smallBlock.id));
+    } else {
+      removeBlock(smallBlock.id);
+    }
+    playSplitSound();
+
+    // Transform the big block into the result
+    const bx = bigBlock.x;
+    const by = bigBlock.y;
+    removeBlock(bigBlock.id);
+    const newBlock = spawnBlock(newVal, bx, by);
+    if (newBlock) {
+      const el = getBlockEl(newBlock.id);
+      if (el) {
+        el.classList.add('merge-flash');
+        setTimeout(() => el.classList.remove('merge-flash'), 500);
+      }
+    }
+  } else {
+    const midX = (b1.x + b2.x) / 2;
+    const midY = (b1.y + b2.y) / 2;
+    playMergeSound(newVal);
+    removeBlock(id1);
+    removeBlock(id2);
+    const newBlock = spawnBlock(newVal, midX, midY);
+    if (newBlock) {
+      const el = getBlockEl(newBlock.id);
+      if (el) {
+        el.classList.add('merge-flash');
+        setTimeout(() => el.classList.remove('merge-flash'), 500);
+      }
+    }
+  }
+
+  // Check guided mode answer
+  if ((mode === 'guided' || mode === 'subtract') && guidedProblem) {
+    if (newVal === guidedProblem.answer) {
+      onGuidedMerge(newVal);
+    }
+  }
+}
+
+function styleMiniBlock(el, n) {
+  if (n === 7 || n === 17) {
+    el.style.background = 'linear-gradient(to top, #DE151D, #E89223, #E6C40C, #38B500, #23B0DB, #5A35C3, #BA79DD)';
+  } else if (n >= 11 && n <= 19) {
+    const onesColor = COLORS[n - 10] || '#999';
+    el.style.background = `linear-gradient(to top, ${onesColor} 40%, #EEEEEE 40%)`;
+  } else {
+    el.style.backgroundColor = COLORS[n];
+  }
+  if (n === 10 || (n >= 11 && n <= 19)) el.style.border = '2px solid #DE151D';
+  if (n === 20) el.style.border = '2px solid #E89223';
+}
+
+// ==================== SPLIT ====================
+function onBlockClick(e, id) {
+  const block = getBlock(id);
+  if (!block || block.value <= 1) return;
+
+  e.stopPropagation();
+  closeSplitMenu();
+  showSplitMenu(block, e.clientX, e.clientY);
+}
+
+function showSplitMenu(block, mx, my) {
+  const menu = document.createElement('div');
+  menu.className = 'split-menu';
+
+  const pgRect = playground.getBoundingClientRect();
+  menu.style.left = (mx - pgRect.left) + 'px';
+  menu.style.top = (my - pgRect.top) + 'px';
+
+  const title = document.createElement('div');
+  title.style.fontWeight = 'bold';
+  title.style.color = '#333';
+  title.style.fontSize = '16px';
+  title.textContent = `Split ${block.value} into...`;
+  menu.appendChild(title);
+
+  // Generate split options
+  for (let i = 1; i <= Math.floor(block.value / 2); i++) {
+    const j = block.value - i;
+    const option = document.createElement('div');
+    option.className = 'split-option';
+
+    const m1 = document.createElement('span');
+    m1.className = 'mini-block';
+    styleMiniBlock(m1, i);
+    const label = document.createElement('span');
+    label.textContent = ` ${i} + ${j} `;
+    const m2 = document.createElement('span');
+    m2.className = 'mini-block';
+    styleMiniBlock(m2, j);
+
+    option.appendChild(m1);
+    option.appendChild(label);
+    option.appendChild(m2);
+
+    option.addEventListener('click', (e) => {
+      e.stopPropagation();
+      splitBlock(block.id, i, j);
+      closeSplitMenu();
+    });
+
+    menu.appendChild(option);
+  }
+
+  playground.appendChild(menu);
+  splitMenu = menu;
+
+  // Reposition if off-screen
+  requestAnimationFrame(() => {
+    const menuRect = menu.getBoundingClientRect();
+    if (menuRect.right > window.innerWidth) {
+      menu.style.left = (parseInt(menu.style.left) - (menuRect.right - window.innerWidth) - 10) + 'px';
+    }
+    if (menuRect.bottom > window.innerHeight) {
+      menu.style.top = (parseInt(menu.style.top) - (menuRect.bottom - window.innerHeight) - 10) + 'px';
+    }
+  });
+}
+
+function closeSplitMenu() {
+  if (splitMenu) {
+    splitMenu.remove();
+    splitMenu = null;
+  }
+}
+
+function splitBlock(id, a, b) {
+  const block = getBlock(id);
+  if (!block) return;
+
+  const boundsA = getShapeBounds(a);
+  const boundsB = getShapeBounds(b);
+
+  playSplitSound();
+
+  const x = block.x;
+  const y = block.y;
+  removeBlock(id);
+
+  spawnBlock(a, x - boundsA.cols * BLOCK_SIZE / 2 - 20, y);
+  spawnBlock(b, x + boundsB.cols * BLOCK_SIZE / 2 + 20, y);
+}
+
+// ==================== TRAY ====================
+function buildTray() {
+  // Remove old tray items
+  tray.querySelectorAll('.tray-block').forEach(el => el.remove());
+
+  for (let n = 1; n <= MAX_NUMBER; n++) {
+    const item = document.createElement('div');
+    item.className = 'tray-block';
+
+    const swatch = document.createElement('div');
+    swatch.style.width = '32px';
+    swatch.style.height = '32px';
+    swatch.style.borderRadius = '8px';
+    if (n === 7 || n === 17) {
+      swatch.style.background = 'linear-gradient(to top, #DE151D, #E89223, #E6C40C, #38B500, #23B0DB, #5A35C3, #BA79DD)';
+    } else if (n >= 11 && n <= 19) {
+      // Teen: split swatch — white top, ones-color bottom
+      const onesColor = COLORS[n - 10] || '#999';
+      swatch.style.background = `linear-gradient(to top, ${onesColor} 40%, #EEEEEE 40%)`;
+    } else {
+      swatch.style.backgroundColor = COLORS[n];
+    }
+    if (n === 10 || (n >= 11 && n <= 19)) {
+      swatch.style.border = '3px solid #DE151D';
+    } else if (n === 20) {
+      swatch.style.border = '3px solid #E89223';
+    } else {
+      swatch.style.border = '2px solid rgba(0,0,0,0.15)';
+    }
+    swatch.style.boxShadow = 'inset 0 -2px 0 rgba(0,0,0,0.15)';
+    swatch.style.margin = '0 auto';
+
+    const label = document.createElement('div');
+    label.className = 'tray-label';
+    label.textContent = n;
+
+    item.appendChild(swatch);
+    item.appendChild(label);
+
+    // Support both tap and drag-from-tray
+    let trayDragState = null;
+
+    item.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const pgRect = playground.getBoundingClientRect();
+      const bounds = getShapeBounds(n);
+      // Spawn block at pointer position (offset into playground)
+      const spawnX = e.clientX - pgRect.left - (bounds.cols * BLOCK_SIZE) / 2;
+      const spawnY = e.clientY - pgRect.top - (bounds.rows * BLOCK_SIZE) / 2;
+      const newBlock = spawnBlock(n, spawnX, Math.max(10, spawnY));
+      if (!newBlock) return;
+
+      const el = getBlockEl(newBlock.id);
+      trayDragState = { id: newBlock.id, moved: false, startX: e.clientX, startY: e.clientY };
+
+      // Immediately start dragging the new block
+      const bRect = el.getBoundingClientRect();
+      dragState = {
+        id: newBlock.id,
+        offsetX: e.clientX - bRect.left,
+        offsetY: e.clientY - bRect.top,
+        startX: newBlock.x,
+        startY: newBlock.y,
+        moved: false,
+        pgOffsetX: pgRect.left,
+        pgOffsetY: pgRect.top,
+      };
+      el.classList.add('dragging');
+
+      const onMove = (ev) => {
+        if (!dragState) return;
+        dragState.moved = true;
+        if (trayDragState) trayDragState.moved = true;
+        const nx = ev.clientX - dragState.pgOffsetX - dragState.offsetX;
+        const ny = ev.clientY - dragState.pgOffsetY - dragState.offsetY;
+        updateBlockPosition(dragState.id, nx, ny);
+        clearMergeHighlights();
+        const target = findMergeTarget(dragState.id);
+        if (target) getBlockEl(target.id)?.classList.add('merge-target');
+      };
+
+      const onUp = (ev) => {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        if (!dragState) return;
+        el.classList.remove('dragging');
+        clearMergeHighlights();
+
+        if (!trayDragState?.moved) {
+          // It was a tap — place block in center of playground
+          const cx = pgRect.width / 2 - (bounds.cols * BLOCK_SIZE) / 2 + (Math.random() - 0.5) * 100;
+          const cy = pgRect.height / 2 - (bounds.rows * BLOCK_SIZE) / 2 - 40 + (Math.random() - 0.5) * 60;
+          updateBlockPosition(newBlock.id, Math.max(10, cx), Math.max(50, cy));
+        } else {
+          const target = findMergeTarget(dragState.id);
+          if (target) mergeBlocks(dragState.id, target.id);
+        }
+
+        dragState = null;
+        trayDragState = null;
+      };
+
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+
+    // Insert before the clear button
+    tray.insertBefore(item, document.getElementById('clear-btn'));
+  }
+}
+
+function clearPlayground() {
+  blocks.forEach(b => {
+    const el = getBlockEl(b.id);
+    if (el) el.remove();
+  });
+  blocks = [];
+}
+
+// ==================== GUIDED MODE ====================
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    const text = btn.textContent.toLowerCase();
+    const active = (m === 'free' && text.includes('free')) ||
+                   (m === 'guided' && text.includes('addition')) ||
+                   (m === 'subtract' && text.includes('subtraction'));
+    btn.classList.toggle('active', active);
+  });
+
+  const isGuided = m === 'guided' || m === 'subtract';
+  guidedPanel.style.display = isGuided ? 'block' : 'none';
+
+  clearPlayground();
+  closeSplitMenu();
+
+  if (isGuided) {
+    nextGuidedProblem();
+  }
+}
+
+function nextGuidedProblem() {
+  clearPlayground();
+
+  let a, b, answer, opSymbol;
+
+  if (mode === 'subtract') {
+    // Subtraction: a - b where a > b, both reasonable
+    a = Math.floor(Math.random() * 15) + 3; // 3..17
+    b = Math.floor(Math.random() * Math.min(a - 1, 10)) + 1; // 1..min(a-1, 10)
+    answer = a - b;
+    opSymbol = '\u2212'; // minus sign
+  } else {
+    // Addition: a + b <= 20
+    a = Math.floor(Math.random() * 10) + 1;
+    const maxB = Math.min(MAX_NUMBER - a, 10);
+    b = Math.floor(Math.random() * maxB) + 1;
+    answer = a + b;
+    opSymbol = '+';
+  }
+
+  guidedProblem = { a, b, answer, guess: null, resolved: false, op: mode === 'subtract' ? 'sub' : 'add' };
+
+  document.getElementById('guided-question').textContent = `${a} ${opSymbol} ${b} = ?`;
+  const hint = mode === 'subtract'
+    ? 'Pick your answer, then drag the red block onto the big one to take away!'
+    : 'Pick your answer, then put the blocks together to check!';
+  document.getElementById('guided-hint').textContent = hint;
+
+  // Build answer choices: correct + 3 wrong, shuffled
+  const choicesContainer = document.getElementById('answer-choices');
+  choicesContainer.innerHTML = '';
+
+  const wrongSet = new Set();
+  wrongSet.add(answer);
+  const minAnswer = 1;
+  while (wrongSet.size < 4) {
+    let wrong = answer + Math.floor(Math.random() * 7) - 3;
+    if (wrong < minAnswer) wrong = answer + Math.floor(Math.random() * 3) + 1;
+    if (wrong > MAX_NUMBER) wrong = answer - Math.floor(Math.random() * 3) - 1;
+    if (wrong >= minAnswer && wrong <= MAX_NUMBER && wrong !== answer) wrongSet.add(wrong);
+  }
+
+  const choices = Array.from(wrongSet);
+  // Shuffle
+  for (let i = choices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [choices[i], choices[j]] = [choices[j], choices[i]];
+  }
+
+  choices.forEach(val => {
+    const btn = document.createElement('div');
+    btn.className = 'answer-choice';
+    btn.dataset.value = val;
+
+    const swatch = document.createElement('div');
+    swatch.className = 'answer-swatch';
+    // Style swatch like the numberblock color
+    if (val === 7 || val === 17) {
+      swatch.style.background = 'linear-gradient(to top, #DE151D, #E89223, #E6C40C, #38B500, #23B0DB, #5A35C3, #BA79DD)';
+    } else if (val >= 11 && val <= 19) {
+      swatch.style.background = `linear-gradient(to top, ${COLORS[val-10]} 40%, #EEEEEE 40%)`;
+      swatch.style.border = '2px solid #DE151D';
+    } else if (val === 20) {
+      swatch.style.backgroundColor = COLORS[20];
+      swatch.style.border = '2px solid #E89223';
+    } else if (val === 10) {
+      swatch.style.backgroundColor = '#EEEEEE';
+      swatch.style.border = '2px solid #DE151D';
+    } else {
+      swatch.style.backgroundColor = COLORS[val] || '#999';
+    }
+
+    const num = document.createElement('span');
+    num.textContent = val;
+
+    btn.appendChild(swatch);
+    btn.appendChild(num);
+
+    btn.addEventListener('click', () => {
+      if (guidedProblem.resolved) return;
+      choicesContainer.querySelectorAll('.answer-choice').forEach(c => c.classList.remove('selected'));
+      btn.classList.add('selected');
+      guidedProblem.guess = val;
+      document.getElementById('guided-question').textContent = `${a} ${opSymbol} ${b} = ${val}?`;
+      const confirmHint = mode === 'subtract'
+        ? 'Now drag the red block onto the big one!'
+        : 'Now drag the blocks together to find out!';
+      document.getElementById('guided-hint').textContent = confirmHint;
+    });
+
+    choicesContainer.appendChild(btn);
+  });
+
+  // Spawn the blocks
+  const pgRect = playground.getBoundingClientRect();
+  const centerY = pgRect.height / 2 + 20;
+
+  spawnBlock(a, pgRect.width * 0.3, centerY);
+  const bBlock = spawnBlock(b, pgRect.width * 0.65, centerY);
+
+  // In subtraction mode, mark the b block as the "take away" block
+  if (mode === 'subtract' && bBlock) {
+    bBlock.isSubtractor = true;
+    const bEl = getBlockEl(bBlock.id);
+    if (bEl) {
+      bEl.classList.add('subtract-glow');
+      const badge = document.createElement('div');
+      badge.className = 'subtract-badge';
+      badge.textContent = '\u2212';
+      bEl.appendChild(badge);
+    }
+  }
+}
+
+function onGuidedMerge(mergedValue) {
+  if (!guidedProblem || guidedProblem.resolved) return;
+  guidedProblem.resolved = true;
+
+  const { a, b, answer, guess, op } = guidedProblem;
+  const sym = op === 'sub' ? '\u2212' : '+';
+  const choicesContainer = document.getElementById('answer-choices');
+
+  // Reveal correct/wrong on answer buttons
+  choicesContainer.querySelectorAll('.answer-choice').forEach(btn => {
+    const val = parseInt(btn.dataset.value);
+    btn.classList.remove('selected');
+    if (val === answer) {
+      btn.classList.add('correct-reveal');
+    } else {
+      btn.classList.add('wrong-reveal');
+    }
+  });
+
+  if (guess === answer) {
+    document.getElementById('guided-question').textContent = `Yes! ${a} ${sym} ${b} = ${answer}!`;
+    document.getElementById('guided-hint').textContent = 'You got it right!';
+    celebrate();
+  } else if (guess !== null) {
+    document.getElementById('guided-question').textContent = `${a} ${sym} ${b} = ${answer}!`;
+    document.getElementById('guided-hint').textContent = `Not quite — but now you know!`;
+    smallCelebrate();
+  } else {
+    document.getElementById('guided-question').textContent = `${a} ${sym} ${b} = ${answer}!`;
+    document.getElementById('guided-hint').textContent = 'Try picking an answer first next time!';
+    smallCelebrate();
+  }
+
+  setTimeout(() => nextGuidedProblem(), 2500);
+}
+
+function celebrate() {
+  const container = document.createElement('div');
+  container.className = 'celebration';
+  document.body.appendChild(container);
+
+  const colors = Object.values(COLORS);
+  for (let i = 0; i < 80; i++) {
+    const confetti = document.createElement('div');
+    confetti.className = 'confetti';
+    confetti.style.left = Math.random() * 100 + '%';
+    confetti.style.top = Math.random() * 30 + '%';
+    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+    confetti.style.animationDelay = (Math.random() * 0.5) + 's';
+    confetti.style.width = (6 + Math.random() * 8) + 'px';
+    confetti.style.height = (6 + Math.random() * 8) + 'px';
+    container.appendChild(confetti);
+  }
+
+  playSuccessSound();
+  setTimeout(() => container.remove(), 2500);
+}
+
+function smallCelebrate() {
+  const container = document.createElement('div');
+  container.className = 'celebration';
+  document.body.appendChild(container);
+
+  const colors = Object.values(COLORS);
+  for (let i = 0; i < 20; i++) {
+    const confetti = document.createElement('div');
+    confetti.className = 'confetti';
+    confetti.style.left = (30 + Math.random() * 40) + '%';
+    confetti.style.top = Math.random() * 20 + '%';
+    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+    confetti.style.animationDelay = (Math.random() * 0.3) + 's';
+    confetti.style.width = (5 + Math.random() * 6) + 'px';
+    confetti.style.height = (5 + Math.random() * 6) + 'px';
+    container.appendChild(confetti);
+  }
+
+  playMergeSound(guidedProblem.answer);
+  setTimeout(() => container.remove(), 2000);
+}
+
+// ==================== SOUND ====================
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playMergeSound(newVal) {
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 300 + newVal * 50;
+    osc.type = 'triangle';
+    gain.gain.value = 0.15;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch(e) {}
+}
+
+function playSplitSound() {
+  try {
+    const ctx = getAudioCtx();
+    // Cheerful two-note pop: ascending boop-boop
+    [0, 0.1].forEach((delay, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = [440, 660][i]; // A4 then E5 — ascending and bright
+      osc.type = 'triangle';
+      gain.gain.value = 0;
+      gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + delay + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.15);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.15);
+    });
+  } catch(e) {}
+}
+
+function playSuccessSound() {
+  try {
+    const ctx = getAudioCtx();
+    [0, 0.15, 0.3].forEach((delay, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = [523, 659, 784][i]; // C5, E5, G5
+      osc.type = 'triangle';
+      gain.gain.value = 0;
+      gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + delay + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.4);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.4);
+    });
+  } catch(e) {}
+}
+
+// ==================== GLOBAL EVENTS ====================
+document.addEventListener('click', (e) => {
+  if (splitMenu && !splitMenu.contains(e.target) && !e.target.closest('.numberblock')) {
+    closeSplitMenu();
+  }
+});
+
+// ==================== INIT ====================
+buildTray();
+</script>
+
+</body>
+</html>
