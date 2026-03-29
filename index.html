@@ -1643,8 +1643,8 @@ function nextGuidedProblem() {
     choicesContainer.appendChild(btn);
   });
 
-  // Reset zoom for guided mode, spawn blocks in surface coords
-  zoomReset();
+  // Zoom out slightly for guided mode so blocks fit
+  zoomLevel = 0.75; panX = 0; panY = 0; applyZoom();
   const pgRect = playground.getBoundingClientRect();
   const centerY = pgRect.height / 2 + 20;
 
