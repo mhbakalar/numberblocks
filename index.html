@@ -20,53 +20,48 @@
 
   @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
 
-  #header {
-    text-align: center;
-    padding: 10px;
+  #top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 6px 12px;
     background: linear-gradient(90deg, #ff6b6b, #ffa500, #ffd93d, #6bcb77, #4d96ff, #9b59b6);
-    color: white;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-    font-size: 28px;
-    letter-spacing: 2px;
     position: relative;
     z-index: 100;
   }
 
-  #mode-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    padding: 8px;
-    background: rgba(255,255,255,0.85);
-    border-bottom: 3px solid #ddd;
-    position: relative;
-    z-index: 100;
+  #header {
+    color: white;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+    font-size: 20px;
+    letter-spacing: 1px;
+    flex-shrink: 0;
   }
 
   .mode-btn {
-    padding: 8px 28px;
-    font-size: 18px;
+    padding: 5px 16px;
+    font-size: 14px;
     font-family: inherit;
-    border: 3px solid #ccc;
-    border-radius: 25px;
+    border: 2px solid rgba(255,255,255,0.5);
+    border-radius: 20px;
     cursor: pointer;
     transition: all 0.2s;
-    background: white;
-    color: #555;
+    background: rgba(255,255,255,0.25);
+    color: white;
   }
 
-  .mode-btn:hover { transform: scale(1.05); }
+  .mode-btn:hover { background: rgba(255,255,255,0.4); }
   .mode-btn.active {
-    background: #4d96ff;
-    color: white;
-    border-color: #2d76df;
-    transform: scale(1.05);
+    background: white;
+    color: #4d96ff;
+    border-color: white;
   }
 
   #playground {
     position: relative;
     width: 100vw;
-    height: calc(100vh - 95px - 105px);
+    height: calc(100vh - 40px - 105px);
     overflow: hidden;
     touch-action: none;
   }
@@ -488,9 +483,8 @@
 </head>
 <body>
 
-<div id="header">Numberblocks!</div>
-
-<div id="mode-buttons">
+<div id="top-bar">
+  <div id="header">Numberblocks!</div>
   <button class="mode-btn active" onclick="setMode('free')">Free Play</button>
   <button class="mode-btn" onclick="setMode('guided')">Addition</button>
   <button class="mode-btn" onclick="setMode('subtract')">Subtraction</button>
