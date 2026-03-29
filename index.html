@@ -74,31 +74,6 @@
     transform-origin: 0 0;
   }
 
-  #zoom-controls {
-    position: fixed;
-    bottom: 115px;
-    left: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    z-index: 60;
-  }
-  .zoom-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 2px solid #ccc;
-    background: rgba(255,255,255,0.9);
-    font-size: 20px;
-    line-height: 32px;
-    text-align: center;
-    cursor: pointer;
-    font-family: inherit;
-    color: #555;
-    transition: all 0.15s;
-    padding: 0;
-  }
-  .zoom-btn:hover { background: #eee; border-color: #999; }
 
   #subtract-toggle {
     position: fixed;
@@ -528,11 +503,6 @@
     <div id="guided-question"></div>
     <div id="guided-hint">Pick your answer, then put the blocks together to check!</div>
     <div id="answer-choices"></div>
-  </div>
-  <div id="zoom-controls">
-    <button class="zoom-btn" onclick="zoomIn()">+</button>
-    <button class="zoom-btn" onclick="zoomOut()">&minus;</button>
-    <button class="zoom-btn" onclick="zoomReset()" style="font-size:14px">↺</button>
   </div>
 </div>
 
