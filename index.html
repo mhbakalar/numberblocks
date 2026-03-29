@@ -1127,15 +1127,17 @@ function startDrag(e, id) {
   el.setPointerCapture(e.pointerId);
   showTrash();
 
-  // Add operation badge in free play
+  // Add operation badge when dragging
   let opBadge = null;
-  if (mode === 'free' && freeOp === 'sub') {
+  const showSubBadge = (mode === 'free' && freeOp === 'sub') || mode === 'subtract';
+  const showMulBadge = (mode === 'free' && freeOp === 'mul') || mode === 'multiply';
+  if (showSubBadge) {
     el.classList.add('subtract-glow');
     opBadge = document.createElement('div');
     opBadge.className = 'subtract-badge';
     opBadge.textContent = '\u2212';
     el.appendChild(opBadge);
-  } else if (mode === 'free' && freeOp === 'mul') {
+  } else if (showMulBadge) {
     opBadge = document.createElement('div');
     opBadge.className = 'subtract-badge';
     opBadge.style.background = '#5A35C3';
