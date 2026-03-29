@@ -100,6 +100,34 @@
   }
   .zoom-btn:hover { background: #eee; border-color: #999; }
 
+  #subtract-toggle {
+    position: fixed;
+    bottom: 115px;
+    right: 10px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid #ccc;
+    background: rgba(255,255,255,0.9);
+    font-size: 24px;
+    line-height: 38px;
+    text-align: center;
+    cursor: pointer;
+    font-family: inherit;
+    color: #999;
+    transition: all 0.2s;
+    z-index: 60;
+    display: block;
+    padding: 0;
+  }
+  #subtract-toggle:hover { border-color: #999; }
+  #subtract-toggle.active {
+    background: #ff4444;
+    color: white;
+    border-color: #cc0000;
+    box-shadow: 0 0 10px rgba(255,68,68,0.4);
+  }
+
   /* --- Numberblock rendering --- */
   .numberblock {
     position: absolute;
@@ -507,6 +535,8 @@
   </div>
 </div>
 
+<button id="subtract-toggle" onclick="toggleFreeSubtract()" title="Subtract mode">−</button>
+
 <div id="tray">
   <div class="tray-row" id="tray-ones"></div>
   <div class="tray-row" id="tray-tens"></div>
@@ -763,6 +793,7 @@ let mode = 'free';
 let guidedProblem = null;
 let dragState = null;
 let splitMenu = null;
+let freeSubtract = false;
 
 const playground = document.getElementById('playground');
 const playSurface = document.getElementById('play-surface');
@@ -1104,6 +1135,16 @@ function startDrag(e, id) {
   el.setPointerCapture(e.pointerId);
   showTrash();
 
+  // Add subtract badge in free play subtract mode
+  let subtractBadge = null;
+  if (mode === 'free' && freeSubtract) {
+    el.classList.add('subtract-glow');
+    subtractBadge = document.createElement('div');
+    subtractBadge.className = 'subtract-badge';
+    subtractBadge.textContent = '\u2212';
+    el.appendChild(subtractBadge);
+  }
+
   const onMove = (ev) => {
     if (!dragState) return;
     dragState.moved = true;
@@ -1128,6 +1169,12 @@ function startDrag(e, id) {
     el.classList.remove('dragging');
     clearMergeHighlights();
     hideTrash();
+
+    // Remove subtract badge
+    if (subtractBadge) {
+      subtractBadge.remove();
+      el.classList.remove('subtract-glow');
+    }
 
     if (dragState.moved) {
       if (isOverTrash(ev)) {
@@ -1155,13 +1202,19 @@ function clearMergeHighlights() {
   playSurface.querySelectorAll('.merge-target').forEach(el => el.classList.remove('merge-target'));
 }
 
+function isSubtractDrag(dragBlock) {
+  // Guided subtraction mode uses isSubtractor flag
+  if (mode === 'subtract' && dragBlock.isSubtractor) return true;
+  // Free play with subtract toggle on
+  if (mode === 'free' && freeSubtract) return true;
+  return false;
+}
+
 function canCombine(dragBlock, otherBlock) {
-  // Subtraction mode: subtractor can be dragged onto a larger block
-  if (mode === 'subtract' && dragBlock.isSubtractor && otherBlock.value > dragBlock.value) {
+  if (isSubtractDrag(dragBlock) && otherBlock.value > dragBlock.value) {
     return true;
   }
-  // Free play / addition: sum must be in range
-  if (mode !== 'subtract' && dragBlock.value + otherBlock.value <= MAX_NUMBER) {
+  if (!isSubtractDrag(dragBlock) && dragBlock.value + otherBlock.value <= MAX_NUMBER) {
     return true;
   }
   return false;
@@ -1219,7 +1272,7 @@ function mergeBlocks(id1, id2) {
   if (!b1 || !b2) return;
 
   // Determine if this is a subtraction
-  const isSubtract = mode === 'subtract' && (b1.isSubtractor || b2.isSubtractor);
+  const isSubtract = isSubtractDrag(b1) || isSubtractDrag(b2);
 
   let newVal, bigBlock, smallBlock;
   if (isSubtract) {
@@ -1539,8 +1592,14 @@ function clearPlayground() {
 }
 
 // ==================== GUIDED MODE ====================
+function toggleFreeSubtract() {
+  freeSubtract = !freeSubtract;
+  document.getElementById('subtract-toggle').classList.toggle('active', freeSubtract);
+}
+
 function setMode(m) {
   mode = m;
+  freeSubtract = false;
   document.querySelectorAll('.mode-btn').forEach(btn => {
     const text = btn.textContent.toLowerCase();
     const active = (m === 'free' && text.includes('free')) ||
@@ -1551,6 +1610,11 @@ function setMode(m) {
 
   const isGuided = m === 'guided' || m === 'subtract';
   guidedPanel.style.display = isGuided ? 'block' : 'none';
+
+  // Show subtract toggle only in free play
+  const subBtn = document.getElementById('subtract-toggle');
+  subBtn.style.display = m === 'free' ? 'block' : 'none';
+  subBtn.classList.remove('active');
 
   clearPlayground();
   closeSplitMenu();
