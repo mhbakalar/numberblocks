@@ -1129,21 +1129,23 @@ function startDrag(e, id) {
 
   // Add operation badge when dragging
   let opBadge = null;
-  const showSubBadge = (mode === 'free' && freeOp === 'sub') || mode === 'subtract';
-  const showMulBadge = (mode === 'free' && freeOp === 'mul') || mode === 'multiply';
-  if (showSubBadge) {
+  const isSub = (mode === 'free' && freeOp === 'sub') || mode === 'subtract';
+  const isMul = (mode === 'free' && freeOp === 'mul') || mode === 'multiply';
+  const isAdd = !isSub && !isMul;
+
+  opBadge = document.createElement('div');
+  opBadge.className = 'subtract-badge';
+  if (isSub) {
     el.classList.add('subtract-glow');
-    opBadge = document.createElement('div');
-    opBadge.className = 'subtract-badge';
     opBadge.textContent = '\u2212';
-    el.appendChild(opBadge);
-  } else if (showMulBadge) {
-    opBadge = document.createElement('div');
-    opBadge.className = 'subtract-badge';
+  } else if (isMul) {
     opBadge.style.background = '#5A35C3';
     opBadge.textContent = '\u00d7';
-    el.appendChild(opBadge);
+  } else {
+    opBadge.style.background = '#38B500';
+    opBadge.textContent = '+';
   }
+  el.appendChild(opBadge);
 
   let lastTarget = null; // Cache last valid target during drag
 
@@ -1739,14 +1741,6 @@ function nextGuidedProblem() {
   // In subtraction mode, mark the b block as the "take away" block
   if (mode === 'subtract' && bBlock) {
     bBlock.isSubtractor = true;
-    const bEl = getBlockEl(bBlock.id);
-    if (bEl) {
-      bEl.classList.add('subtract-glow');
-      const badge = document.createElement('div');
-      badge.className = 'subtract-badge';
-      badge.textContent = '\u2212';
-      bEl.appendChild(badge);
-    }
   }
 }
 
