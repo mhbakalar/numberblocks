@@ -75,8 +75,7 @@
     z-index: 10;
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
-    will-change: transform, left, top;
-    -webkit-transform: translateZ(0);
+    will-change: left, top;
   }
   .numberblock:hover { filter: brightness(1.1); z-index: 20; }
   .numberblock.dragging {
@@ -674,14 +673,14 @@ function createBlockElement(block) {
   const el = document.createElement('div');
   el.className = 'numberblock pop-in';
   el.dataset.id = id;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
   el.style.width = (bounds.cols * BLOCK_SIZE) + 'px';
   el.style.height = (bounds.rows * BLOCK_SIZE + 36) + 'px';
   el.style.transformOrigin = 'top left';
 
   if (scale < 1) {
-    el.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
-  } else {
-    el.style.transform = `translate(${x}px, ${y}px)`;
+    el.style.transform = `scale(${scale})`;
   }
 
   // Face
@@ -788,13 +787,8 @@ function updateBlockPosition(id, x, y) {
   block.y = y;
   const el = getBlockEl(id);
   if (el) {
-    // Use translate for smooth GPU-composited movement on iOS/Safari
-    const scale = scaleFor(block.value);
-    if (scale < 1) {
-      el.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
-    } else {
-      el.style.transform = `translate(${x}px, ${y}px)`;
-    }
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
   }
 }
 
