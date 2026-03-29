@@ -101,6 +101,12 @@
     padding: 0;
   }
   .free-toggle:hover { border-color: #999; }
+  .free-toggle.active-add {
+    background: #38B500;
+    color: white;
+    border-color: #2a8f00;
+    box-shadow: 0 0 10px rgba(56,181,0,0.4);
+  }
   .free-toggle.active-sub {
     background: #ff4444;
     color: white;
@@ -518,6 +524,7 @@
 </div>
 
 <div id="free-mode-tools">
+  <button id="add-toggle" class="free-toggle active-add" onclick="toggleFreeOp('add')" title="Add mode">+</button>
   <button id="subtract-toggle" class="free-toggle" onclick="toggleFreeOp('sub')" title="Subtract mode">&minus;</button>
   <button id="multiply-toggle" class="free-toggle" onclick="toggleFreeOp('mul')" title="Multiply mode">&times;</button>
 </div>
@@ -1584,7 +1591,8 @@ function clearPlayground() {
 
 // ==================== GUIDED MODE ====================
 function toggleFreeOp(op) {
-  freeOp = (freeOp === op) ? 'add' : op; // toggle off if already active
+  freeOp = op;
+  document.getElementById('add-toggle').classList.toggle('active-add', freeOp === 'add');
   document.getElementById('subtract-toggle').classList.toggle('active-sub', freeOp === 'sub');
   document.getElementById('multiply-toggle').classList.toggle('active-mul', freeOp === 'mul');
 }
@@ -1606,6 +1614,7 @@ function setMode(m) {
 
   // Show free play tools only in free play
   document.getElementById('free-mode-tools').style.display = m === 'free' ? 'flex' : 'none';
+  document.getElementById('add-toggle').classList.toggle('active-add', true);
   document.getElementById('subtract-toggle').classList.remove('active-sub');
   document.getElementById('multiply-toggle').classList.remove('active-mul');
 
