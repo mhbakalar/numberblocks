@@ -774,6 +774,20 @@ const playSurface = document.getElementById('play-surface');
 const tray = document.getElementById('tray');
 const guidedPanel = document.getElementById('guided-panel');
 
+// ==================== CANVAS HELPERS ====================
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
 // ==================== NUMBERBLOCK RENDERING ====================
 function getShapeBounds(n) {
   const shape = getShape(n);
@@ -835,28 +849,78 @@ function createBlockElement(block) {
 
   // Unit blocks
   const faceHeight = 36;
-  shape.forEach(([c, r], idx) => {
-    const unit = document.createElement('div');
-    unit.className = 'block-unit';
+  const useCanvas = value > 20;
 
-    const style = getUnitStyle(value, shape, idx);
-    unit.style.backgroundColor = style.bg;
-    if (style.border) {
-      unit.style.borderColor = style.border;
-      unit.style.borderWidth = '3px';
-    }
+  if (useCanvas) {
+    // Render blocks as a single canvas for performance
+    const cw = bounds.cols * BLOCK_SIZE;
+    const ch = bounds.rows * BLOCK_SIZE;
+    const canvas = document.createElement('canvas');
+    canvas.width = cw;
+    canvas.height = ch;
+    canvas.style.position = 'absolute';
+    canvas.style.left = '0';
+    canvas.style.top = faceHeight + 'px';
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    const ctx = canvas.getContext('2d');
 
-    unit.style.left = (c * BLOCK_SIZE) + 'px';
-    unit.style.top = (faceHeight + (bounds.rows - 1 - r) * BLOCK_SIZE) + 'px';
+    shape.forEach(([c, r], idx) => {
+      const style = getUnitStyle(value, shape, idx);
+      const bx = c * BLOCK_SIZE;
+      const by = (bounds.rows - 1 - r) * BLOCK_SIZE;
+      const inset = 2;
 
-    if (style.dot) {
-      const dot = document.createElement('div');
-      dot.style.cssText = `position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;border-radius:50%;background:${SIX_SPOT_COLOR};`;
-      unit.appendChild(dot);
-    }
+      // Block background
+      ctx.fillStyle = style.bg;
+      ctx.beginPath();
+      roundRect(ctx, bx + inset, by + inset, BLOCK_SIZE - inset * 2, BLOCK_SIZE - inset * 2, 6);
+      ctx.fill();
 
-    el.appendChild(unit);
-  });
+      // Border
+      ctx.strokeStyle = style.border || 'rgba(0,0,0,0.15)';
+      ctx.lineWidth = style.border ? 3 : 2;
+      ctx.stroke();
+
+      // Bottom shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.fillRect(bx + inset + 4, by + BLOCK_SIZE - inset - 3, BLOCK_SIZE - inset * 2 - 8, 3);
+
+      // Dot for Six-family
+      if (style.dot) {
+        ctx.fillStyle = SIX_SPOT_COLOR;
+        ctx.beginPath();
+        ctx.arc(bx + BLOCK_SIZE / 2, by + BLOCK_SIZE / 2, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+
+    el.appendChild(canvas);
+  } else {
+    // Small numbers: use individual divs for nice CSS effects
+    shape.forEach(([c, r], idx) => {
+      const unit = document.createElement('div');
+      unit.className = 'block-unit';
+
+      const style = getUnitStyle(value, shape, idx);
+      unit.style.backgroundColor = style.bg;
+      if (style.border) {
+        unit.style.borderColor = style.border;
+        unit.style.borderWidth = '3px';
+      }
+
+      unit.style.left = (c * BLOCK_SIZE) + 'px';
+      unit.style.top = (faceHeight + (bounds.rows - 1 - r) * BLOCK_SIZE) + 'px';
+
+      if (style.dot) {
+        const dot = document.createElement('div');
+        dot.style.cssText = `position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;border-radius:50%;background:${SIX_SPOT_COLOR};`;
+        unit.appendChild(dot);
+      }
+
+      el.appendChild(unit);
+    });
+  }
 
   // Number label
   const label = document.createElement('div');
